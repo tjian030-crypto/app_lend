@@ -1,0 +1,440 @@
+/* ===== 基本設定 ===== */
+:root {
+  --bg: #fbf6f9;
+  --surface: #ffffff;
+  --ink: #4a3f4d;
+  --muted: #8c7f90;
+  --line: #f0e4ea;
+
+  --rose: #e8a0b4;
+  --rose-soft: #f9dce5;
+  --period: #f2b3c4;
+  --period-ink: #4a1f31;
+  --lav: #c9b8ec;
+  --lav-ink: #35285a;
+  --lav-soft: #ece6f8;
+  --mint: #cfe9df;
+
+  --radius: 20px;
+  --radius-sm: 12px;
+  --shadow: 0 6px 24px rgba(180, 140, 160, 0.12);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", system-ui, sans-serif;
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+button,
+input {
+  font: inherit;
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 3px solid var(--lav);
+  outline-offset: 2px;
+}
+
+/* ===== 版面 ===== */
+.page {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 28px 16px 48px;
+  display: grid;
+  gap: 16px;
+  grid-template-areas:
+    "hero"
+    "summary"
+    "chance"
+    "calendar"
+    "edit"
+    "entry";
+}
+
+.hero { grid-area: hero; padding: 8px 4px 4px; }
+.summary { grid-area: summary; }
+.chance { grid-area: chance; }
+.calendar { grid-area: calendar; }
+.edit { grid-area: edit; }
+.entry { grid-area: entry; }
+
+.card {
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 20px;
+}
+
+.card h2 {
+  margin: 0 0 14px;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+/* ===== 標題區 ===== */
+.hero h1 {
+  margin: 0;
+  font-size: 2.2rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  line-height: 1.2;
+}
+
+.hero .sub {
+  margin: 4px 0 0;
+  font-size: 0.95rem;
+  color: var(--muted);
+  letter-spacing: 0.04em;
+}
+
+.hero .tagline {
+  margin: 10px 0 0;
+  color: var(--ink);
+}
+
+/* ===== 日期摘要 ===== */
+.summary-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.summary-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.summary-list li:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.summary-list .label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.summary-list .value {
+  font-weight: 700;
+  text-align: right;
+}
+
+.dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.dot-period { background: var(--period); }
+.dot-predict { border: 2px dashed var(--rose); }
+.dot-ovulation { background: var(--lav); }
+
+/* ===== 懷孕可能性 ===== */
+.chance-level {
+  margin: 0 0 12px;
+  font-size: 1.9rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.meter {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.meter span {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--line);
+}
+
+.chance[data-level="low"] .meter span:nth-child(1) { background: #9fd3bf; }
+.chance[data-level="mid"] .meter span:nth-child(-n+2) { background: var(--lav); }
+.chance[data-level="high"] .meter span { background: var(--rose); }
+
+.chance-note,
+.hint {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+/* ===== 月曆 ===== */
+.cal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.cal-head h2 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.cal-nav {
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--lav-soft);
+  font-size: 1.2rem;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.cal-nav:hover {
+  background: var(--lav);
+}
+
+.weekdays,
+.days {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+
+.weekdays {
+  margin-bottom: 6px;
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.day {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  font-size: 0.95rem;
+}
+
+.day.is-period {
+  background: var(--period);
+  color: var(--period-ink);
+  font-weight: 700;
+}
+
+.day.is-predicted {
+  border: 2px dashed var(--rose);
+}
+
+.day.is-ovulation {
+  background: var(--lav);
+  color: var(--lav-ink);
+  font-weight: 700;
+}
+
+.day.is-today {
+  font-weight: 700;
+}
+
+.day.is-today::after {
+  content: "";
+  position: absolute;
+  bottom: 14%;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin: 16px 0 0;
+  padding: 14px 0 0;
+  list-style: none;
+  border-top: 1px solid var(--line);
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.legend li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dot-today {
+  position: relative;
+  background: transparent;
+}
+
+.dot-today::after {
+  content: "";
+  position: absolute;
+  left: 3.5px;
+  top: 3.5px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--ink);
+}
+
+/* ===== 編輯表單 ===== */
+.edit-form {
+  display: grid;
+  gap: 14px;
+}
+
+.field {
+  display: grid;
+  gap: 6px;
+}
+
+.field label {
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.field input {
+  width: 100%;
+  min-height: 46px;
+  padding: 8px 14px;
+  border: 1.5px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+}
+
+.field input:focus {
+  border-color: var(--lav);
+}
+
+.field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.btn {
+  min-height: 48px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--rose);
+  color: #fff;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.btn:hover {
+  background: #de8aa1;
+}
+
+.form-msg {
+  min-height: 1.4em;
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.form-msg.is-error {
+  color: #b4435f;
+}
+
+/* ===== 每日症狀紀錄入口 ===== */
+.entry-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 20px;
+  border-radius: var(--radius);
+  background: var(--lav-soft);
+  color: var(--ink);
+  text-decoration: none;
+  transition: background 0.15s;
+}
+
+.entry-link:hover {
+  background: var(--lav);
+}
+
+.entry-link strong {
+  display: block;
+  font-size: 1.1rem;
+}
+
+.entry-link small {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.entry-link:hover small {
+  color: var(--lav-ink);
+}
+
+.entry-arrow {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--surface);
+  font-size: 1.2rem;
+}
+
+/* ===== 桌面版 ===== */
+@media (min-width: 860px) {
+  .page {
+    padding-top: 48px;
+    grid-template-columns: 1.4fr 1fr;
+    align-items: start;
+    grid-template-areas:
+      "hero hero"
+      "calendar summary"
+      "calendar chance"
+      "calendar edit"
+      "calendar entry";
+  }
+
+  .hero h1 {
+    font-size: 2.8rem;
+  }
+}
+
+@media (max-width: 380px) {
+  .field-row {
+    grid-template-columns: 1fr;
+  }
+
+  .card {
+    padding: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+  }
+}
