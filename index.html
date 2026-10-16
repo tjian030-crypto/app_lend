@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>月律｜經期紀錄與週期分析系統</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="page">
+
+    <!-- 系統名稱與說明 -->
+    <header class="hero">
+      <h1>月律</h1>
+      <p class="sub">經期紀錄與週期分析系統</p>
+      <p class="tagline">記下每一次經期，輕鬆掌握週期、排卵日與身體節奏。</p>
+    </header>
+
+    <!-- 最近一次、預測下次、預計排卵日 -->
+    <section class="card summary" aria-labelledby="summary-title">
+      <h2 id="summary-title">週期概況</h2>
+      <ul class="summary-list">
+        <li>
+          <span class="label"><i class="dot dot-period"></i>最近一次月經日期</span>
+          <span class="value" id="lastDate">尚未設定</span>
+        </li>
+        <li>
+          <span class="label"><i class="dot dot-predict"></i>預測下次月經日期</span>
+          <span class="value" id="nextDate">—</span>
+        </li>
+        <li>
+          <span class="label"><i class="dot dot-ovulation"></i>預計排卵日</span>
+          <span class="value" id="ovulationDate">—</span>
+        </li>
+      </ul>
+    </section>
+
+    <!-- 懷孕可能性 -->
+    <section class="card chance" id="chance" data-level="" aria-labelledby="chance-title">
+      <h2 id="chance-title">今日懷孕可能性</h2>
+      <p class="chance-level" id="chanceLevel">—</p>
+      <div class="meter" aria-hidden="true"><span></span><span></span><span></span></div>
+      <p class="chance-note" id="chanceNote">請先輸入最近一次月經日期。</p>
+    </section>
+
+    <!-- 月經週期月曆 -->
+    <section class="card calendar" aria-labelledby="cal-title">
+      <div class="cal-head">
+        <button type="button" class="cal-nav" id="prevMonth" aria-label="上個月">‹</button>
+        <h2 id="cal-title"></h2>
+        <button type="button" class="cal-nav" id="nextMonth" aria-label="下個月">›</button>
+      </div>
+      <div class="weekdays" aria-hidden="true">
+        <span>日</span><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span>
+      </div>
+      <div class="days" id="days"></div>
+      <ul class="legend">
+        <li><i class="dot dot-period"></i>經期</li>
+        <li><i class="dot dot-predict"></i>預測經期</li>
+        <li><i class="dot dot-ovulation"></i>排卵日</li>
+        <li><i class="dot dot-today"></i>今天</li>
+      </ul>
+    </section>
+
+    <!-- 編輯月經日期 -->
+    <section class="card edit" aria-labelledby="edit-title">
+      <h2 id="edit-title">編輯月經日期</h2>
+      <form class="edit-form" id="editForm" novalidate>
+        <div class="field">
+          <label for="lastInput">最近一次月經開始日</label>
+          <input type="date" id="lastInput" required>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="cycleInput">週期天數</label>
+            <input type="number" id="cycleInput" min="21" max="45" inputmode="numeric" required>
+          </div>
+          <div class="field">
+            <label for="lenInput">經期天數</label>
+            <input type="number" id="lenInput" min="2" max="7" inputmode="numeric" required>
+          </div>
+        </div>
+        <button type="submit" class="btn">儲存日期</button>
+        <p class="form-msg" id="formMsg" role="status" aria-live="polite"></p>
+      </form>
+    </section>
+
+    <!-- 每日經期症狀紀錄入口 -->
+    <section class="entry" aria-label="每日經期症狀紀錄">
+      <a class="entry-link" id="symptomLink" href="symptoms.html">
+        <span>
+          <strong>記錄今日症狀</strong>
+          <small id="todayText"></small>
+        </span>
+        <span class="entry-arrow" aria-hidden="true">›</span>
+      </a>
+    </section>
+
+  </main>
+
+  <script>
+    (function () {
+      var KEY = "periodTracker.v1";
+      var DAY = 86400000;
+      var state = { last: "", cycle: 28, len: 5 };
+
+      try {
+        var saved = JSON.parse(localStorage.getItem(KEY));
+        if (saved && typeof saved === "object") {
+          state.last = saved.last || "";
+          state.cycle = Number(saved.cycle) || 28;
+          state.len = Number(saved.len) || 5;
+        }
+      } catch (e) {}
+
+      function $(id) { return document.getElementById(id); }
+      function pad(n) { return String(n).padStart(2, "0"); }
+      function iso(d) { return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); }
+      function parse(s) { var p = s.split("-").map(Number); return new Date(p[0], p[1] - 1, p[2]); }
+      function utc(d) { return Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()); }
+      function diff(a, b) { return Math.round((utc(b) - utc(a)) / DAY); }
+      function add(d, n) { return new Date(d.getFullYear(), d.getMonth(), d.getDate() + n); }
+      function fmt(d) { return d.getFullYear() + "年" + (d.getMonth() + 1) + "月" + d.getDate() + "日"; }
+
+      var now = new Date();
+      var today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      var viewYear = today.getFullYear();
+      var viewMonth = today.getMonth();
+
+      // 目前週期資訊
+      function getInfo() {
+        if (!state.last) return null;
+        var last = parse(state.last);
+        var d = diff(last, today);
+        var n = d >= 0 ? Math.floor(d / state.cycle) : 0;
+        var start = add(last, n * state.cycle);
+        var next = add(start, state.cycle);
+        var ovulation = add(next, -14);
+        return {
+          last: last,
+          next: next,
+          ovulation: ovulation,
+          cycleDay: d >= 0 ? d - n * state.cycle + 1 : null,
+          inPeriod: d >= 0 && (d - n * state.cycle) < state.len
+        };
+      }
+
+      function renderSummary(info) {
+        $("lastDate").textContent = info ? fmt(info.last) : "尚未設定";
+        $("nextDate").textContent = info ? fmt(info.next) : "—";
+        $("ovulationDate").textContent = info ? fmt(info.ovulation) : "—";
+      }
+
+      function renderChance(info) {
+        var box = $("chance");
+        var level = $("chanceLevel");
+        var note = $("chanceNote");
+
+        if (!info || info.cycleDay === null) {
+          box.setAttribute("data-level", "");
+          level.textContent = "—";
+          note.textContent = info
+            ? "最近一次月經日期在未來，請確認日期是否正確。"
+            : "請先輸入最近一次月經日期。";
+          return;
+        }
+
+        var d = diff(info.ovulation, today);
+        var key, text, hint;
+        if (d >= -2 && d <= 0) {
+          key = "high"; text = "高";
+          hint = "接近排卵日，是懷孕機率較高的時期。";
+        } else if ((d >= -5 && d <= -3) || d === 1) {
+          key = "mid"; text = "中";
+          hint = "位於排卵日前後，仍有懷孕的可能。";
+        } else {
+          key = "low"; text = "低";
+          hint = info.inPeriod ? "目前為經期，懷孕機率較低。" : "遠離排卵日，懷孕機率較低。";
+        }
+
+        box.setAttribute("data-level", key);
+        level.textContent = text;
+        note.textContent = "週期第 " + info.cycleDay + " 天。" + hint + "此為推算結果，並非避孕依據。";
+      }
+
+      // 判斷某一天的狀態
+      function dayStatus(date) {
+        if (!state.last) return [];
+        var d = diff(parse(state.last), date);
+        if (d < 0) return [];
+        var k = Math.floor(d / state.cycle);
+        var pos = d - k * state.cycle;
+        var list = [];
+        if (pos === state.cycle - 14) list.push("is-ovulation");
+        else if (pos < state.len) list.push(k === 0 ? "is-period" : "is-predicted");
+        return list;
+      }
+
+      var LABELS = { "is-period": "經期", "is-predicted": "預測經期", "is-ovulation": "排卵日" };
+
+      function renderCalendar() {
+        $("cal-title").textContent = viewYear + "年" + (viewMonth + 1) + "月";
+        var wrap = $("days");
+        wrap.innerHTML = "";
+
+        var blanks = new Date(viewYear, viewMonth, 1).getDay();
+        var total = new Date(viewYear, viewMonth + 1, 0).getDate();
+
+        for (var i = 0; i < blanks; i++) {
+          wrap.appendChild(document.createElement("div"));
+        }
+
+        for (var n = 1; n <= total; n++) {
+          var date = new Date(viewYear, viewMonth, n);
+          var cell = document.createElement("div");
+          var classes = dayStatus(date);
+          var label = (viewMonth + 1) + "月" + n + "日";
+
+          cell.className = "day";
+          cell.textContent = n;
+          classes.forEach(function (c) {
+            cell.classList.add(c);
+            label += " " + LABELS[c];
+          });
+          if (utc(date) === utc(today)) {
+            cell.classList.add("is-today");
+            label += " 今天";
+          }
+          cell.setAttribute("aria-label", label);
+          wrap.appendChild(cell);
+        }
+      }
+
+      function renderAll() {
+        var info = getInfo();
+        renderSummary(info);
+        renderChance(info);
+        renderCalendar();
+      }
+
+      // 月份切換
+      $("prevMonth").addEventListener("click", function () {
+        viewMonth--;
+        if (viewMonth < 0) { viewMonth = 11; viewYear--; }
+        renderCalendar();
+      });
+      $("nextMonth").addEventListener("click", function () {
+        viewMonth++;
+        if (viewMonth > 11) { viewMonth = 0; viewYear++; }
+        renderCalendar();
+      });
+
+      // 編輯表單
+      $("lastInput").max = iso(today);
+      $("lastInput").value = state.last;
+      $("cycleInput").value = state.cycle;
+      $("lenInput").value = state.len;
+
+      function showMsg(text, isError) {
+        var el = $("formMsg");
+        el.textContent = text;
+        el.className = "form-msg" + (isError ? " is-error" : "");
+      }
+
+      $("editForm").addEventListener("submit", function (e) {
+        e.preventDefault();
+        var last = $("lastInput").value;
+        var cycle = Number($("cycleInput").value);
+        var len = Number($("lenInput").value);
+
+        if (!last) return showMsg("請選擇最近一次月經開始日。", true);
+        if (utc(parse(last)) > utc(today)) return showMsg("日期不能晚於今天。", true);
+        if (!(cycle >= 21 && cycle <= 45)) return showMsg("週期天數請填 21 到 45 之間。", true);
+        if (!(len >= 2 && len <= 7)) return showMsg("經期天數請填 2 到 7 之間。", true);
+
+        state = { last: last, cycle: Math.round(cycle), len: Math.round(len) };
+        try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (err) {}
+
+        viewYear = today.getFullYear();
+        viewMonth = today.getMonth();
+        renderAll();
+        showMsg("已儲存，月曆與預測已更新。", false);
+      });
+
+      // 症狀紀錄入口
+      var weekNames = ["日", "一", "二", "三", "四", "五", "六"];
+      $("todayText").textContent = fmt(today) + "（週" + weekNames[today.getDay()] + "）";
+      $("symptomLink").href = "symptoms.html?date=" + iso(today);
+
+      renderAll();
+    })();
+  </script>
+</body>
+</html>
