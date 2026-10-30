@@ -5,6 +5,69 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>經期紀錄｜月律</title>
   <link rel="stylesheet" href="style.css">
+  <style>
+    /* 本頁專用樣式（不更動 style.css） */
+    .page-sub .hero { margin-bottom: 16px; }
+
+    .record-layout { display: grid; gap: 16px; }
+
+    .group { margin: 0; padding: 0; border: 0; min-width: 0; }
+    .group legend { padding: 0; margin-bottom: 8px; font-size: 0.9rem; color: var(--muted); }
+
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+    .chip { position: relative; cursor: pointer; }
+    .chip input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+    .chip span {
+      display: inline-flex; align-items: center; min-height: 40px; padding: 0 14px;
+      border: 1.5px solid var(--line); border-radius: 999px; background: var(--bg);
+      font-size: 0.9rem; transition: background 0.15s, border-color 0.15s;
+    }
+    .chip input:checked + span { background: var(--rose-soft); border-color: var(--rose); color: var(--period-ink); font-weight: 700; }
+    .chips.mood .chip input:checked + span { background: var(--lav-soft); border-color: var(--lav); color: var(--lav-ink); }
+    .chip input:focus-visible + span { outline: 3px solid var(--lav); outline-offset: 2px; }
+
+    .field textarea {
+      width: 100%; min-height: 90px; padding: 10px 14px; resize: vertical;
+      border: 1.5px solid var(--line); border-radius: var(--radius-sm); background: var(--bg);
+    }
+    .field textarea:focus { border-color: var(--lav); }
+
+    .form-actions { display: grid; gap: 10px; }
+    .btn-ghost {
+      min-height: 48px; border: 1.5px solid var(--line); border-radius: var(--radius-sm);
+      background: transparent; cursor: pointer;
+    }
+    .btn-ghost:hover { background: var(--bg); }
+
+    .list-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+    .list-head h2 { margin: 0; }
+    .count { font-size: 0.9rem; color: var(--muted); }
+    .search-row { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: end; margin-bottom: 16px; }
+
+    .records { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; }
+    .record { padding: 16px; border: 1.5px solid var(--line); border-radius: var(--radius-sm); background: var(--bg); }
+    .record.is-editing { border-color: var(--lav); background: var(--lav-soft); }
+    .record-top { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; }
+    .record-date { font-weight: 700; }
+    .record-days { font-size: 0.9rem; color: var(--muted); }
+    .tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+    .tag { padding: 2px 10px; border-radius: 999px; background: var(--rose-soft); color: var(--period-ink); font-size: 0.85rem; }
+    .tag-flow { background: var(--period); font-weight: 700; }
+    .tag-mood { background: var(--lav); color: var(--lav-ink); }
+    .record-note { margin: 10px 0 0; font-size: 0.9rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .record-actions { display: flex; gap: 8px; margin-top: 12px; }
+    .btn-small {
+      min-height: 40px; padding: 0 16px; border: 1.5px solid var(--line); border-radius: 10px;
+      background: var(--surface); cursor: pointer;
+    }
+    .btn-small:hover { background: var(--bg); }
+    .btn-small.danger { color: #b4435f; }
+    .empty { margin: 0; padding: 24px 8px; text-align: center; color: var(--muted); }
+
+    @media (min-width: 860px) {
+      .record-layout { grid-template-columns: 1fr 1.2fr; align-items: start; }
+    }
+  </style>
 </head>
 <body>
   <nav class="nav" aria-label="主選單">
@@ -23,6 +86,346 @@
     <header class="hero">
       <h1>經期紀錄</h1>
     </header>
+
+    <div class="record-layout">
+      <!-- 新增 / 修改表單 -->
+      <section class="card" id="formCard" aria-labelledby="formTitle">
+        <h2 id="formTitle">新增經期紀錄</h2>
+        <form class="edit-form" id="recordForm" novalidate>
+          <div class="field-row">
+            <div class="field">
+              <label for="startInput">月經開始日期</label>
+              <input type="date" id="startInput" required>
+            </div>
+            <div class="field">
+              <label for="endInput">月經結束日期</label>
+              <input type="date" id="endInput" required>
+            </div>
+          </div>
+
+          <fieldset class="group">
+            <legend>經血量</legend>
+            <div class="chips" id="flowGroup"></div>
+          </fieldset>
+
+          <fieldset class="group">
+            <legend>身體症狀（可多選）</legend>
+            <div class="chips" id="symptomGroup"></div>
+          </fieldset>
+
+          <fieldset class="group">
+            <legend>情緒變化</legend>
+            <div class="chips mood" id="moodGroup"></div>
+          </fieldset>
+
+          <div class="field">
+            <label for="noteInput">備註</label>
+            <textarea id="noteInput" maxlength="300"></textarea>
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" class="btn" id="submitBtn">新增紀錄</button>
+            <button type="button" class="btn-ghost" id="cancelBtn" hidden>取消修改</button>
+          </div>
+          <p class="form-msg" id="formMsg" role="status" aria-live="polite"></p>
+        </form>
+      </section>
+
+      <!-- 紀錄清單 -->
+      <section class="card" aria-labelledby="listTitle">
+        <div class="list-head">
+          <h2 id="listTitle">紀錄清單</h2>
+          <span class="count" id="count"></span>
+        </div>
+        <div class="search-row">
+          <div class="field">
+            <label for="searchInput">查詢紀錄</label>
+            <input type="search" id="searchInput" placeholder="日期、症狀、情緒或備註">
+          </div>
+          <button type="button" class="btn-ghost" id="clearSearch">清除</button>
+        </div>
+        <ul class="records" id="records"></ul>
+        <p class="empty" id="empty" hidden></p>
+      </section>
+    </div>
   </main>
+
+  <script>
+    (function () {
+      var KEY = "periodTracker.records.v1";
+      var DAY = 86400000;
+      var FLOWS = ["少", "中", "多"];
+      var SYMPTOMS = ["腹痛", "頭痛", "乳房脹痛", "腰痠", "疲倦", "噁心"];
+      var MOODS = ["平穩", "開心", "焦慮", "易怒", "低落"];
+
+      var records = load();
+      var editingId = null;
+
+      function $(id) { return document.getElementById(id); }
+      function pad(n) { return String(n).padStart(2, "0"); }
+      function iso(d) { return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); }
+      function parse(s) { var p = s.split("-").map(Number); return new Date(p[0], p[1] - 1, p[2]); }
+      function utc(d) { return Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()); }
+      function fmt(s) { var d = parse(s); return d.getFullYear() + "年" + (d.getMonth() + 1) + "月" + d.getDate() + "日"; }
+      function h(tag, cls, text) {
+        var e = document.createElement(tag);
+        if (cls) e.className = cls;
+        if (text !== undefined) e.textContent = text;
+        return e;
+      }
+
+      function load() {
+        try {
+          var a = JSON.parse(localStorage.getItem(KEY));
+          return Array.isArray(a) ? a : [];
+        } catch (e) { return []; }
+      }
+      function save() {
+        try { localStorage.setItem(KEY, JSON.stringify(records)); return true; }
+        catch (e) { return false; }
+      }
+
+      var now = new Date();
+      var todayIso = iso(new Date(now.getFullYear(), now.getMonth(), now.getDate()));
+
+      // 建立選項
+      function buildChips(box, type, name, items) {
+        items.forEach(function (item) {
+          var label = h("label", "chip");
+          var input = document.createElement("input");
+          input.type = type;
+          input.name = name;
+          input.value = item;
+          label.appendChild(input);
+          label.appendChild(h("span", null, item));
+          box.appendChild(label);
+        });
+      }
+      buildChips($("flowGroup"), "radio", "flow", FLOWS);
+      buildChips($("symptomGroup"), "checkbox", "symptom", SYMPTOMS);
+      buildChips($("moodGroup"), "radio", "mood", MOODS);
+
+      var form = $("recordForm");
+
+      function setRadio(name, value) {
+        var el = form.querySelector('input[name="' + name + '"][value="' + value + '"]');
+        if (el) el.checked = true;
+      }
+      function getRadio(name) {
+        var el = form.querySelector('input[name="' + name + '"]:checked');
+        return el ? el.value : "";
+      }
+      function getSymptoms() {
+        return Array.prototype.map.call(
+          form.querySelectorAll('input[name="symptom"]:checked'),
+          function (i) { return i.value; }
+        );
+      }
+
+      function showMsg(text, isError) {
+        var el = $("formMsg");
+        el.textContent = text;
+        el.className = "form-msg" + (isError ? " is-error" : "");
+      }
+
+      function syncEndMin() {
+        $("endInput").min = $("startInput").value || "";
+      }
+
+      function resetForm() {
+        editingId = null;
+        form.reset();
+        setRadio("flow", "中");
+        setRadio("mood", "平穩");
+        $("endInput").min = "";
+        $("formTitle").textContent = "新增經期紀錄";
+        $("submitBtn").textContent = "新增紀錄";
+        $("cancelBtn").hidden = true;
+      }
+
+      function startEdit(rec) {
+        editingId = rec.id;
+        $("startInput").value = rec.start;
+        $("endInput").value = rec.end;
+        syncEndMin();
+        setRadio("flow", rec.flow);
+        setRadio("mood", rec.mood);
+        Array.prototype.forEach.call(form.querySelectorAll('input[name="symptom"]'), function (i) {
+          i.checked = rec.symptoms.indexOf(i.value) !== -1;
+        });
+        $("noteInput").value = rec.note || "";
+        $("formTitle").textContent = "修改經期紀錄";
+        $("submitBtn").textContent = "儲存修改";
+        $("cancelBtn").hidden = false;
+        showMsg("", false);
+        render();
+        $("formCard").scrollIntoView({ block: "start" });
+        $("startInput").focus();
+      }
+
+      // 清單與查詢
+      function searchText(r) {
+        return [r.start, r.end, fmt(r.start), fmt(r.end), r.flow, r.symptoms.join(" "), r.mood, r.note || ""]
+          .join(" ").toLowerCase();
+      }
+
+      function render() {
+        var terms = $("searchInput").value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+        var list = records.slice().sort(function (a, b) {
+          return a.start < b.start ? 1 : a.start > b.start ? -1 : 0;
+        }).filter(function (r) {
+          var text = searchText(r);
+          return terms.every(function (t) { return text.indexOf(t) !== -1; });
+        });
+
+        $("count").textContent = terms.length
+          ? "找到 " + list.length + " 筆（共 " + records.length + " 筆）"
+          : "共 " + records.length + " 筆";
+
+        var ul = $("records");
+        ul.innerHTML = "";
+
+        var empty = $("empty");
+        if (!list.length) {
+          empty.hidden = false;
+          empty.textContent = records.length
+            ? "找不到符合的紀錄，請換個關鍵字。"
+            : "還沒有紀錄，請先用表單新增第一筆。";
+          return;
+        }
+        empty.hidden = true;
+
+        list.forEach(function (r) {
+          var days = Math.round((utc(parse(r.end)) - utc(parse(r.start))) / DAY) + 1;
+          var li = h("li", "record" + (r.id === editingId ? " is-editing" : ""));
+
+          var top = h("div", "record-top");
+          top.appendChild(h("span", "record-date", fmt(r.start) + " – " + fmt(r.end)));
+          top.appendChild(h("span", "record-days", "共 " + days + " 天"));
+          li.appendChild(top);
+
+          var tags = h("div", "tags");
+          tags.appendChild(h("span", "tag tag-flow", "經血量 " + r.flow));
+          r.symptoms.forEach(function (s) { tags.appendChild(h("span", "tag", s)); });
+          tags.appendChild(h("span", "tag tag-mood", "情緒 " + r.mood));
+          li.appendChild(tags);
+
+          if (r.note) li.appendChild(h("p", "record-note", r.note));
+
+          var actions = h("div", "record-actions");
+          var edit = h("button", "btn-small", "修改");
+          edit.type = "button";
+          edit.dataset.action = "edit";
+          edit.dataset.id = r.id;
+          var del = h("button", "btn-small danger", "刪除");
+          del.type = "button";
+          del.dataset.action = "delete";
+          del.dataset.id = r.id;
+          actions.appendChild(edit);
+          actions.appendChild(del);
+          li.appendChild(actions);
+
+          ul.appendChild(li);
+        });
+      }
+
+      function findIndex(id) {
+        for (var i = 0; i < records.length; i++) if (records[i].id === id) return i;
+        return -1;
+      }
+
+      // 事件
+      $("startInput").max = todayIso;
+      $("startInput").addEventListener("change", syncEndMin);
+
+      form.addEventListener("submit", function (e) {
+        e.preventDefault();
+        var start = $("startInput").value;
+        var end = $("endInput").value;
+
+        if (!start) return showMsg("請選擇月經開始日期。", true);
+        if (start > todayIso) return showMsg("開始日期不能晚於今天。", true);
+        if (!end) return showMsg("請選擇月經結束日期。", true);
+        if (end < start) return showMsg("結束日期不能早於開始日期。", true);
+
+        var data = {
+          start: start,
+          end: end,
+          flow: getRadio("flow"),
+          symptoms: getSymptoms(),
+          mood: getRadio("mood"),
+          note: $("noteInput").value.trim()
+        };
+
+        var backup = JSON.stringify(records);
+        var wasEditing = editingId !== null;
+
+        if (wasEditing) {
+          var idx = findIndex(editingId);
+          if (idx !== -1) {
+            data.id = editingId;
+            records[idx] = data;
+          }
+        } else {
+          data.id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+          records.push(data);
+        }
+
+        if (!save()) {
+          records = JSON.parse(backup);
+          return showMsg("無法儲存，請確認瀏覽器允許儲存資料。", true);
+        }
+
+        resetForm();
+        render();
+        showMsg(wasEditing ? "已儲存修改。" : "已新增紀錄。", false);
+      });
+
+      $("cancelBtn").addEventListener("click", function () {
+        resetForm();
+        showMsg("", false);
+        render();
+      });
+
+      $("records").addEventListener("click", function (e) {
+        var btn = e.target.closest("button[data-action]");
+        if (!btn) return;
+        var idx = findIndex(btn.dataset.id);
+        if (idx === -1) return;
+
+        if (btn.dataset.action === "edit") {
+          startEdit(records[idx]);
+        } else if (btn.dataset.action === "delete") {
+          if (!window.confirm("確定要刪除這筆紀錄嗎？")) return;
+          var backup = JSON.stringify(records);
+          var removedId = records[idx].id;
+          records.splice(idx, 1);
+          if (!save()) {
+            records = JSON.parse(backup);
+            return showMsg("無法刪除，請確認瀏覽器允許儲存資料。", true);
+          }
+          if (editingId === removedId) resetForm();
+          showMsg("已刪除紀錄。", false);
+          render();
+        }
+      });
+
+      $("searchInput").addEventListener("input", render);
+      $("clearSearch").addEventListener("click", function () {
+        $("searchInput").value = "";
+        render();
+        $("searchInput").focus();
+      });
+
+      // 初始狀態（首頁連結會帶入 ?date=今天日期，作為開始日期預設值）
+      resetForm();
+      var param = new URLSearchParams(location.search).get("date");
+      if (param && /^\d{4}-\d{2}-\d{2}$/.test(param) && param <= todayIso) {
+        $("startInput").value = param;
+        syncEndMin();
+      }
+      render();
+    })();
+  </script>
 </body>
 </html>
