@@ -5,6 +5,58 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>週期統計｜月律</title>
   <link rel="stylesheet" href="style.css">
+  <style>
+    /* 本頁專用樣式（不更動 style.css） */
+    .page-sub .hero { margin-bottom: 16px; }
+
+    .notice {
+      display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+      gap: 12px; margin-bottom: 16px; padding: 16px 20px;
+      border-radius: var(--radius); background: var(--lav-soft);
+    }
+    .notice p { margin: 0; }
+    .notice strong { display: block; }
+    .notice-link {
+      display: inline-flex; align-items: center; min-height: 44px; padding: 0 20px;
+      border-radius: var(--radius-sm); background: var(--period); color: var(--period-ink);
+      font-weight: 700; text-decoration: none;
+    }
+    .notice-link:hover { background: var(--rose); }
+
+    .stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 16px; }
+    .stat { padding: 16px; border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow); }
+    .stat-wide { grid-column: 1 / -1; }
+    .stat-label { margin: 0; font-size: 0.9rem; color: var(--muted); }
+    .stat-value { margin: 4px 0 0; font-size: 1.9rem; font-weight: 700; line-height: 1.3; }
+    .stat-value small { margin-left: 2px; font-size: 1rem; font-weight: 400; color: var(--muted); }
+    .stat-value.is-empty { color: var(--muted); }
+    .stat-note { margin: 4px 0 0; font-size: 0.85rem; color: var(--muted); }
+
+    .badge { display: inline-block; padding: 2px 16px; border-radius: 999px; font-size: 1.2rem; }
+    .badge-good { background: var(--mint); color: #1f5a46; }
+    .badge-mid { background: var(--lav); color: var(--lav-ink); }
+    .badge-low { background: var(--period); color: var(--period-ink); }
+
+    .charts { display: grid; gap: 16px; }
+    .bars { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+    .bar-row { display: grid; grid-template-columns: 52px 1fr 52px; align-items: center; gap: 10px; font-size: 0.9rem; }
+    .bar-label { color: var(--muted); }
+    .bar-track { position: relative; height: 22px; border-radius: 11px; background: var(--bg); }
+    .bar-fill { height: 100%; min-width: 6px; border-radius: 11px; }
+    .bar-fill.cycle { background: var(--lav); }
+    .bar-fill.period { background: var(--period); }
+    .bar-avg { position: absolute; top: -3px; bottom: -3px; width: 0; border-left: 2px dashed var(--ink); }
+    .bar-value { text-align: right; font-weight: 700; }
+    .chart-legend { display: flex; align-items: center; gap: 8px; margin: 14px 0 0; font-size: 0.85rem; color: var(--muted); }
+    .chart-legend i { display: inline-block; width: 0; height: 14px; border-left: 2px dashed var(--ink); }
+    .empty { margin: 0; padding: 24px 8px; text-align: center; color: var(--muted); }
+    .disclaimer { margin: 16px 4px 0; font-size: 0.85rem; color: var(--muted); }
+
+    @media (min-width: 860px) {
+      .stats { grid-template-columns: repeat(4, 1fr); }
+      .charts { grid-template-columns: 1fr 1fr; align-items: start; }
+    }
+  </style>
 </head>
 <body>
   <nav class="nav" aria-label="主選單">
@@ -22,7 +74,221 @@
   <main class="page page-sub">
     <header class="hero">
       <h1>週期統計</h1>
+      <p class="sub" id="basis"></p>
     </header>
+
+    <!-- 資料不足提示 -->
+    <div class="notice" id="notice" hidden>
+      <p><strong>資料不足</strong><span id="noticeText"></span></p>
+      <a class="notice-link" href="record.html">前往新增紀錄</a>
+    </div>
+
+    <!-- 統計卡片 -->
+    <section class="stats" aria-label="統計結果">
+      <div class="stat">
+        <p class="stat-label">平均週期天數</p>
+        <p class="stat-value" id="avgCycle"></p>
+        <p class="stat-note" id="avgCycleNote"></p>
+      </div>
+      <div class="stat">
+        <p class="stat-label">平均經期天數</p>
+        <p class="stat-value" id="avgPeriod"></p>
+        <p class="stat-note" id="avgPeriodNote"></p>
+      </div>
+      <div class="stat">
+        <p class="stat-label">最短週期</p>
+        <p class="stat-value" id="minCycle"></p>
+        <p class="stat-note" id="minCycleNote"></p>
+      </div>
+      <div class="stat">
+        <p class="stat-label">最長週期</p>
+        <p class="stat-value" id="maxCycle"></p>
+        <p class="stat-note" id="maxCycleNote"></p>
+      </div>
+      <div class="stat stat-wide">
+        <p class="stat-label">月經週期規律性</p>
+        <p class="stat-value" id="regularity"></p>
+        <p class="stat-note" id="regularityNote"></p>
+      </div>
+    </section>
+
+    <!-- 簡單圖表 -->
+    <div class="charts">
+      <section class="card" aria-labelledby="cycleChartTitle">
+        <h2 id="cycleChartTitle">每次週期天數</h2>
+        <ul class="bars" id="cycleBars"></ul>
+        <p class="empty" id="cycleEmpty" hidden>資料不足，至少需要 2 筆紀錄才能畫出週期圖表。</p>
+        <p class="chart-legend" id="cycleLegend" hidden><i></i>平均（最多顯示最近 12 次）</p>
+      </section>
+
+      <section class="card" aria-labelledby="periodChartTitle">
+        <h2 id="periodChartTitle">每次經期天數</h2>
+        <ul class="bars" id="periodBars"></ul>
+        <p class="empty" id="periodEmpty" hidden>資料不足，請先新增經期紀錄。</p>
+        <p class="chart-legend" id="periodLegend" hidden><i></i>平均（最多顯示最近 12 筆）</p>
+      </section>
+    </div>
+
+    <p class="disclaimer">統計結果僅供參考，不能取代醫師的診斷。若週期長期不規律，建議諮詢醫師。</p>
   </main>
+
+  <script>
+    (function () {
+      var KEY = "periodTracker.records.v1";
+      var DAY = 86400000;
+      var MAX_BARS = 12;
+      var DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+      function $(id) { return document.getElementById(id); }
+      function parse(s) { var p = s.split("-").map(Number); return new Date(p[0], p[1] - 1, p[2]); }
+      function utc(d) { return Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()); }
+      function diffDays(a, b) { return Math.round((utc(parse(b)) - utc(parse(a))) / DAY); }
+      function num(n) { return String(Math.round(n * 10) / 10); }
+      function shortDate(s) { var d = parse(s); return (d.getMonth() + 1) + "/" + d.getDate(); }
+      function longDate(s) { var d = parse(s); return d.getFullYear() + "年" + (d.getMonth() + 1) + "月" + d.getDate() + "日"; }
+      function h(tag, cls, text) {
+        var e = document.createElement(tag);
+        if (cls) e.className = cls;
+        if (text !== undefined) e.textContent = text;
+        return e;
+      }
+
+      function load() {
+        try {
+          var a = JSON.parse(localStorage.getItem(KEY));
+          if (!Array.isArray(a)) return [];
+          return a.filter(function (r) {
+            return r && DATE_RE.test(r.start) && DATE_RE.test(r.end) && r.end >= r.start;
+          });
+        } catch (e) { return []; }
+      }
+
+      var records = load().sort(function (a, b) { return a.start < b.start ? -1 : a.start > b.start ? 1 : 0; });
+      var n = records.length;
+
+      // 經期天數（每筆紀錄）
+      var periods = records.map(function (r) {
+        return { label: shortDate(r.start), full: longDate(r.start), value: diffDays(r.start, r.end) + 1 };
+      });
+
+      // 週期天數（相鄰兩次開始日之間）
+      var starts = [];
+      records.forEach(function (r) { if (starts.indexOf(r.start) === -1) starts.push(r.start); });
+      var cycles = [];
+      for (var i = 0; i < starts.length - 1; i++) {
+        cycles.push({
+          label: shortDate(starts[i]),
+          full: longDate(starts[i]),
+          value: diffDays(starts[i], starts[i + 1])
+        });
+      }
+
+      function avg(list) {
+        return list.reduce(function (s, x) { return s + x.value; }, 0) / list.length;
+      }
+
+      // 統計卡片
+      function setStat(id, value, unit, note, empty) {
+        var el = $(id);
+        el.textContent = "";
+        el.className = "stat-value" + (empty ? " is-empty" : "");
+        el.appendChild(document.createTextNode(value));
+        if (unit) el.appendChild(h("small", null, unit));
+        $(id + "Note").textContent = note;
+      }
+
+      var NEED2 = "資料不足，至少需要 2 筆紀錄";
+
+      if (periods.length) {
+        setStat("avgPeriod", num(avg(periods)), "天", "依 " + periods.length + " 筆紀錄計算", false);
+      } else {
+        setStat("avgPeriod", "—", "", "資料不足，請先新增紀錄", true);
+      }
+
+      if (cycles.length) {
+        var values = cycles.map(function (c) { return c.value; });
+        var minV = Math.min.apply(null, values);
+        var maxV = Math.max.apply(null, values);
+        var basis = "依 " + cycles.length + " 次週期計算";
+        setStat("avgCycle", num(avg(cycles)), "天", basis, false);
+        setStat("minCycle", String(minV), "天", "", false);
+        setStat("maxCycle", String(maxV), "天", "", false);
+      } else {
+        setStat("avgCycle", "—", "", NEED2, true);
+        setStat("minCycle", "—", "", NEED2, true);
+        setStat("maxCycle", "—", "", NEED2, true);
+      }
+
+      // 規律性：最長與最短週期的差距
+      var regEl = $("regularity");
+      regEl.textContent = "";
+      if (cycles.length >= 2) {
+        var vals = cycles.map(function (c) { return c.value; });
+        var range = Math.max.apply(null, vals) - Math.min.apply(null, vals);
+        var cls, text;
+        if (range <= 7) { cls = "badge-good"; text = "規律"; }
+        else if (range <= 14) { cls = "badge-mid"; text = "略不規律"; }
+        else { cls = "badge-low"; text = "不規律"; }
+        regEl.className = "stat-value";
+        regEl.appendChild(h("span", "badge " + cls, text));
+        $("regularityNote").textContent =
+          "最長與最短週期相差 " + range + " 天（7 天內為規律，8–14 天為略不規律，超過 14 天為不規律）";
+      } else {
+        regEl.className = "stat-value is-empty";
+        regEl.textContent = "—";
+        $("regularityNote").textContent = "資料不足，至少需要 3 筆紀錄（2 次週期）才能判斷";
+      }
+
+      // 簡單圖表（橫向長條）
+      function renderBars(listId, emptyId, legendId, items, average, cls) {
+        var ul = $(listId);
+        ul.innerHTML = "";
+        if (!items.length) {
+          $(emptyId).hidden = false;
+          $(legendId).hidden = true;
+          return;
+        }
+        $(emptyId).hidden = true;
+        $(legendId).hidden = false;
+
+        var shown = items.slice(-MAX_BARS);
+        var max = Math.max.apply(null, shown.map(function (x) { return x.value; }).concat(average));
+
+        shown.forEach(function (x) {
+          var li = h("li", "bar-row");
+          li.setAttribute("aria-label", x.full + "，" + x.value + " 天");
+          li.appendChild(h("span", "bar-label", x.label));
+
+          var track = h("div", "bar-track");
+          var fill = h("div", "bar-fill " + cls);
+          fill.style.width = (x.value / max * 100) + "%";
+          track.appendChild(fill);
+          var mark = h("div", "bar-avg");
+          mark.style.left = (average / max * 100) + "%";
+          track.appendChild(mark);
+          li.appendChild(track);
+
+          li.appendChild(h("span", "bar-value", x.value + " 天"));
+          ul.appendChild(li);
+        });
+      }
+
+      renderBars("cycleBars", "cycleEmpty", "cycleLegend", cycles, cycles.length ? avg(cycles) : 0, "cycle");
+      renderBars("periodBars", "periodEmpty", "periodLegend", periods, periods.length ? avg(periods) : 0, "period");
+
+      // 說明文字與提示
+      $("basis").textContent = n ? "依據 " + n + " 筆經期紀錄計算" : "目前沒有經期紀錄";
+
+      var notice = $("notice");
+      if (n < 3) {
+        notice.hidden = false;
+        $("noticeText").textContent = n === 0
+          ? "目前沒有經期紀錄。至少新增 2 筆才能計算週期，3 筆以上才能判斷規律性。"
+          : n === 1
+            ? "目前只有 1 筆紀錄。再新增 1 筆即可計算週期，3 筆以上才能判斷規律性。"
+            : "目前有 2 筆紀錄，已可計算週期。再新增 1 筆即可判斷規律性。";
+      }
+    })();
+  </script>
 </body>
 </html>
