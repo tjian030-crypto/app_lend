@@ -5,6 +5,56 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>週期分析｜月律</title>
   <link rel="stylesheet" href="style.css">
+  <style>
+    /* 本頁專用樣式（不更動 style.css） */
+    .page-sub .hero { margin-bottom: 16px; }
+    .page-sub > * + * { margin-top: 16px; }
+    .page-sub > .hero + * { margin-top: 0; }
+
+    .caution, .notice { padding: 14px 20px; border-radius: var(--radius); }
+    .caution { background: var(--rose-soft); color: var(--period-ink); font-size: 0.95rem; }
+    .caution p, .notice p { margin: 0; }
+    .notice {
+      display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+      gap: 12px; background: var(--lav-soft);
+    }
+    .notice strong { display: block; }
+    .notice-link {
+      display: inline-flex; align-items: center; min-height: 44px; padding: 0 20px;
+      border-radius: var(--radius-sm); background: var(--period); color: var(--period-ink);
+      font-weight: 700; text-decoration: none;
+    }
+    .notice-link:hover { background: var(--rose); }
+
+    .stats { display: grid; gap: 12px; }
+    .stat { padding: 16px 20px; border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow); }
+    .stat-label { margin: 0; font-size: 0.9rem; color: var(--muted); }
+    .stat-value { margin: 4px 0 0; font-size: 1.4rem; font-weight: 700; line-height: 1.4; }
+    .stat-value.is-empty { color: var(--muted); }
+    .stat-note { margin: 2px 0 0; font-size: 0.9rem; color: var(--muted); }
+
+    .day.is-fertile { background: var(--mint); color: #1f5a46; }
+    .dot-fertile { background: var(--mint); }
+    .cal-note { margin: 12px 0 0; font-size: 0.85rem; color: var(--muted); }
+
+    .charts { display: grid; gap: 16px; }
+    .card .sub-title { margin: 0 0 12px; font-size: 0.95rem; color: var(--muted); }
+    .bars { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+    .bar-row { display: grid; grid-template-columns: 64px 1fr 48px; align-items: center; gap: 10px; font-size: 0.9rem; }
+    .bar-label { color: var(--muted); }
+    .bar-track { height: 22px; border-radius: 11px; background: var(--bg); }
+    .bar-fill { height: 100%; min-width: 6px; border-radius: 11px; }
+    .bar-fill.sym { background: var(--period); }
+    .bar-fill.trend { background: var(--lav); }
+    .bar-value { text-align: right; font-weight: 700; }
+    .trend-text { margin: 14px 0 0; font-size: 0.95rem; }
+    .empty { margin: 0; padding: 24px 8px; text-align: center; color: var(--muted); }
+
+    @media (min-width: 860px) {
+      .stats { grid-template-columns: repeat(3, 1fr); }
+      .charts { grid-template-columns: 1fr 1fr; align-items: start; }
+    }
+  </style>
 </head>
 <body>
   <nav class="nav" aria-label="主選單">
@@ -22,7 +72,335 @@
   <main class="page page-sub">
     <header class="hero">
       <h1>週期分析</h1>
+      <p class="sub" id="basis"></p>
     </header>
+
+    <div class="caution" role="note">
+      <p><strong>請注意：</strong>排卵日與易受孕時期皆為估計值，不可作為避孕依據。</p>
+    </div>
+
+    <!-- 歷史資料不足提醒 -->
+    <div class="notice" id="notice" hidden>
+      <p><strong>歷史資料不足</strong><span id="noticeText"></span></p>
+      <a class="notice-link" href="record.html">前往新增紀錄</a>
+    </div>
+
+    <!-- 預測結果 -->
+    <section class="stats" aria-label="預測結果">
+      <div class="stat">
+        <p class="stat-label">預測下次月經日期</p>
+        <p class="stat-value" id="nextDate"></p>
+        <p class="stat-note" id="nextNote"></p>
+      </div>
+      <div class="stat">
+        <p class="stat-label">預計排卵日</p>
+        <p class="stat-value" id="ovDate"></p>
+        <p class="stat-note" id="ovNote"></p>
+      </div>
+      <div class="stat">
+        <p class="stat-label">今天所處階段</p>
+        <p class="stat-value" id="phase"></p>
+        <p class="stat-note" id="phaseNote"></p>
+      </div>
+    </section>
+
+    <!-- 週期階段月曆 -->
+    <section class="card" aria-labelledby="cal-title">
+      <div class="cal-head">
+        <button type="button" class="cal-nav" id="prevMonth" aria-label="上個月">‹</button>
+        <h2 id="cal-title"></h2>
+        <button type="button" class="cal-nav" id="nextMonth" aria-label="下個月">›</button>
+      </div>
+      <div class="weekdays" aria-hidden="true">
+        <span>日</span><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span>
+      </div>
+      <div class="days" id="days"></div>
+      <ul class="legend">
+        <li><i class="dot dot-period"></i>經期（已記錄）</li>
+        <li><i class="dot dot-predict"></i>預測經期</li>
+        <li><i class="dot dot-fertile"></i>易受孕期（估計）</li>
+        <li><i class="dot dot-ovulation"></i>排卵日（估計）</li>
+        <li><i class="dot dot-today"></i>今天</li>
+      </ul>
+      <p class="cal-note">預測最多推算未來 12 個週期，越遠的預測誤差越大。</p>
+    </section>
+
+    <!-- 症狀趨勢 -->
+    <div class="charts">
+      <section class="card" aria-labelledby="symTitle">
+        <h2 id="symTitle">各症狀出現次數</h2>
+        <p class="sub-title" id="symSub"></p>
+        <ul class="bars" id="symBars"></ul>
+        <p class="empty" id="symEmpty" hidden></p>
+      </section>
+
+      <section class="card" aria-labelledby="trendTitle">
+        <h2 id="trendTitle">近期症狀數量趨勢</h2>
+        <p class="sub-title">最近 6 次經期各記錄了幾種症狀</p>
+        <ul class="bars" id="trendBars"></ul>
+        <p class="trend-text" id="trendText" hidden></p>
+        <p class="empty" id="trendEmpty" hidden></p>
+      </section>
+    </div>
   </main>
+
+  <script>
+    (function () {
+      var KEY = "periodTracker.records.v1";
+      var DAY = 86400000;
+      var MAX_PROJECT = 12;
+      var RECENT = 6;
+      var DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+      function $(id) { return document.getElementById(id); }
+      function pad(n) { return String(n).padStart(2, "0"); }
+      function iso(d) { return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); }
+      function parse(s) { var p = s.split("-").map(Number); return new Date(p[0], p[1] - 1, p[2]); }
+      function utc(d) { return Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()); }
+      function diff(a, b) { return Math.round((utc(b) - utc(a)) / DAY); }
+      function add(d, n) { return new Date(d.getFullYear(), d.getMonth(), d.getDate() + n); }
+      function fmt(d) { return d.getFullYear() + "年" + (d.getMonth() + 1) + "月" + d.getDate() + "日"; }
+      function md(d) { return (d.getMonth() + 1) + "/" + d.getDate(); }
+      function avg(list) { return list.reduce(function (s, x) { return s + x; }, 0) / list.length; }
+      function h(tag, cls, text) {
+        var e = document.createElement(tag);
+        if (cls) e.className = cls;
+        if (text !== undefined) e.textContent = text;
+        return e;
+      }
+      function relDays(n, unitAfter, unitBefore) {
+        if (n > 0) return "還有 " + n + " 天" + unitAfter;
+        if (n === 0) return "就是今天";
+        return unitBefore.replace("{n}", -n);
+      }
+
+      // ===== 讀取紀錄 =====
+      function load() {
+        try {
+          var a = JSON.parse(localStorage.getItem(KEY));
+          if (!Array.isArray(a)) return [];
+          return a.filter(function (r) {
+            return r && DATE_RE.test(r.start) && DATE_RE.test(r.end) && r.end >= r.start;
+          }).map(function (r) {
+            r.symptoms = Array.isArray(r.symptoms) ? r.symptoms : [];
+            return r;
+          });
+        } catch (e) { return []; }
+      }
+
+      var records = load().sort(function (a, b) { return a.start < b.start ? -1 : a.start > b.start ? 1 : 0; });
+      var n = records.length;
+      var now = new Date();
+      var today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+      // ===== 預測參數 =====
+      var starts = [];
+      records.forEach(function (r) { if (starts.indexOf(r.start) === -1) starts.push(r.start); });
+      var cycleLens = [];
+      for (var i = 0; i < starts.length - 1; i++) {
+        cycleLens.push(diff(parse(starts[i]), parse(starts[i + 1])));
+      }
+
+      var pred = null;
+      if (cycleLens.length >= 1) {
+        var periodLens = records.map(function (r) { return diff(parse(r.start), parse(r.end)) + 1; });
+        var last = records[n - 1];
+        pred = {
+          cyc: Math.max(1, Math.round(avg(cycleLens.slice(-RECENT)))),
+          plen: Math.max(1, Math.round(avg(periodLens.slice(-RECENT)))),
+          lastStart: parse(last.start),
+          lastLen: diff(parse(last.start), parse(last.end)) + 1
+        };
+        pred.ovPos = Math.max(pred.cyc - 14, 1);
+      }
+
+      function startOf(k) { return add(pred.lastStart, k * pred.cyc); }
+
+      // ===== 說明與提醒 =====
+      $("basis").textContent = !n
+        ? "目前沒有經期紀錄"
+        : pred
+          ? "依據 " + n + " 筆紀錄推算：平均週期 " + pred.cyc + " 天、平均經期 " + pred.plen + " 天"
+          : "目前只有 " + n + " 筆經期紀錄";
+
+      if (n < 3) {
+        $("notice").hidden = false;
+        $("noticeText").textContent = n === 0
+          ? "目前沒有經期紀錄。至少新增 2 筆才能預測，3 筆以上預測會更可靠。"
+          : n === 1
+            ? "目前只有 1 筆紀錄。再新增 1 筆即可預測，3 筆以上預測會更可靠。"
+            : "目前只有 2 筆紀錄（1 次週期），預測準確度有限，建議持續記錄。";
+      }
+
+      // ===== 預測卡片 =====
+      function setStat(valueId, noteId, value, note, empty) {
+        var v = $(valueId);
+        v.textContent = value;
+        v.className = "stat-value" + (empty ? " is-empty" : "");
+        $(noteId).textContent = note;
+      }
+
+      if (pred) {
+        // 下次月經
+        var next = startOf(1);
+        var toNext = diff(today, next);
+        setStat("nextDate", "nextNote", fmt(next),
+          toNext >= 0
+            ? relDays(toNext, "", "")
+            : "已超過預測日 " + (-toNext) + " 天，可能延遲，請記錄新的經期", false);
+
+        // 下一個排卵日（易受孕期尚未結束的那個週期）
+        var k = 0;
+        while (diff(today, add(startOf(k), pred.ovPos + 1)) < 0 && k < MAX_PROJECT) k++;
+        var ov = add(startOf(k), pred.ovPos);
+        var toOv = diff(today, ov);
+        setStat("ovDate", "ovNote", fmt(ov),
+          relDays(toOv, "", "已過 {n} 天") + "｜易受孕期 " + md(add(ov, -5)) + " – " + md(add(ov, 1)), false);
+
+        // 今天階段
+        var d = diff(pred.lastStart, today);
+        if (d >= 0) {
+          var kk = Math.floor(d / pred.cyc);
+          var pos = d - kk * pred.cyc;
+          var plen = kk === 0 ? pred.lastLen : pred.plen;
+          var name, desc;
+          if (pos < plen) { name = "經期"; desc = "月經來潮期間。"; }
+          else if (pos === pred.ovPos) { name = "排卵日"; desc = "預估排卵日，懷孕機率較高。"; }
+          else if (pos >= pred.ovPos - 5 && pos <= pred.ovPos + 1) { name = "易受孕期"; desc = "靠近排卵日，懷孕機率較高。"; }
+          else if (pos < pred.ovPos) { name = "濾泡期"; desc = "經期結束後、易受孕期之前。"; }
+          else { name = "黃體期"; desc = "排卵後至下次月經之前。"; }
+          setStat("phase", "phaseNote", name,
+            "週期第 " + (pos + 1) + " 天。" + desc + (kk >= 1 ? "尚未記錄新的經期，此為依預測推算。" : ""), false);
+        } else {
+          setStat("phase", "phaseNote", "—", "最近一次月經日期在未來，請確認紀錄。", true);
+        }
+      } else {
+        var need = "資料不足，至少需要 2 筆紀錄";
+        setStat("nextDate", "nextNote", "—", need, true);
+        setStat("ovDate", "ovNote", "—", need, true);
+        setStat("phase", "phaseNote", "—", need, true);
+      }
+
+      // ===== 月曆 =====
+      var viewYear = today.getFullYear();
+      var viewMonth = today.getMonth();
+      var LABELS = {
+        "is-period": "經期（已記錄）",
+        "is-ovulation": "排卵日（估計）",
+        "is-predicted": "預測經期",
+        "is-fertile": "易受孕期（估計）"
+      };
+
+      function dayClass(date) {
+        var s = iso(date);
+        for (var i = 0; i < records.length; i++) {
+          if (s >= records[i].start && s <= records[i].end) return "is-period";
+        }
+        if (!pred) return "";
+        var d = diff(pred.lastStart, date);
+        if (d < 0) return "";
+        var k = Math.floor(d / pred.cyc);
+        if (k > MAX_PROJECT) return "";
+        var pos = d - k * pred.cyc;
+        if (pos === pred.ovPos) return "is-ovulation";
+        if (k >= 1 && pos < pred.plen) return "is-predicted";
+        if (pos >= pred.ovPos - 5 && pos <= pred.ovPos + 1) return "is-fertile";
+        return "";
+      }
+
+      function renderCalendar() {
+        $("cal-title").textContent = viewYear + "年" + (viewMonth + 1) + "月";
+        var wrap = $("days");
+        wrap.innerHTML = "";
+        var blanks = new Date(viewYear, viewMonth, 1).getDay();
+        var total = new Date(viewYear, viewMonth + 1, 0).getDate();
+
+        for (var i = 0; i < blanks; i++) wrap.appendChild(document.createElement("div"));
+
+        for (var day = 1; day <= total; day++) {
+          var date = new Date(viewYear, viewMonth, day);
+          var cell = h("div", "day", day);
+          var cls = dayClass(date);
+          var label = (viewMonth + 1) + "月" + day + "日";
+          if (cls) { cell.classList.add(cls); label += " " + LABELS[cls]; }
+          if (utc(date) === utc(today)) { cell.classList.add("is-today"); label += " 今天"; }
+          cell.setAttribute("aria-label", label);
+          wrap.appendChild(cell);
+        }
+      }
+
+      $("prevMonth").addEventListener("click", function () {
+        viewMonth--;
+        if (viewMonth < 0) { viewMonth = 11; viewYear--; }
+        renderCalendar();
+      });
+      $("nextMonth").addEventListener("click", function () {
+        viewMonth++;
+        if (viewMonth > 11) { viewMonth = 0; viewYear++; }
+        renderCalendar();
+      });
+      renderCalendar();
+
+      // ===== 症狀趨勢 =====
+      function renderBars(ul, items, cls, unit, max) {
+        ul.innerHTML = "";
+        items.forEach(function (x) {
+          var li = h("li", "bar-row");
+          li.setAttribute("aria-label", x.label + "，" + x.value + " " + unit);
+          li.appendChild(h("span", "bar-label", x.label));
+          var track = h("div", "bar-track");
+          var fill = h("div", "bar-fill " + cls);
+          fill.style.width = (x.value / max * 100) + "%";
+          track.appendChild(fill);
+          li.appendChild(track);
+          li.appendChild(h("span", "bar-value", x.value + " " + unit));
+          ul.appendChild(li);
+        });
+      }
+
+      var counts = {};
+      records.forEach(function (r) {
+        r.symptoms.forEach(function (s) { counts[s] = (counts[s] || 0) + 1; });
+      });
+      var symList = Object.keys(counts).map(function (k) { return { label: k, value: counts[k] }; })
+        .sort(function (a, b) { return b.value - a.value; });
+
+      if (symList.length) {
+        $("symSub").textContent = "共 " + n + " 筆經期紀錄，長條滿格代表每次都有出現";
+        renderBars($("symBars"), symList, "sym", "次", n);
+      } else {
+        $("symSub").hidden = true;
+        $("symEmpty").hidden = false;
+        $("symEmpty").textContent = n
+          ? "尚未記錄任何症狀，新增經期紀錄時可勾選身體症狀。"
+          : "資料不足，請先新增經期紀錄。";
+      }
+
+      if (n && symList.length) {
+        var recent = records.slice(-RECENT).map(function (r) {
+          return { label: md(parse(r.start)), value: r.symptoms.length };
+        });
+        var maxCount = Math.max.apply(null, recent.map(function (x) { return x.value; }).concat(1));
+        renderBars($("trendBars"), recent, "trend", "種", maxCount);
+
+        if (n >= 4) {
+          var recentVals = records.slice(-3).map(function (r) { return r.symptoms.length; });
+          var prevVals = records.slice(Math.max(0, n - 6), n - 3).map(function (r) { return r.symptoms.length; });
+          var a = avg(recentVals), b = avg(prevVals);
+          var change = a - b;
+          var word = change >= 0.5 ? "增加" : change <= -0.5 ? "減少" : "大致持平";
+          var t = $("trendText");
+          t.hidden = false;
+          t.textContent = "最近 3 次平均 " + (Math.round(a * 10) / 10) + " 種症狀，與前 " + prevVals.length +
+            " 次（平均 " + (Math.round(b * 10) / 10) + " 種）相比" + word + "。";
+        }
+      } else {
+        $("trendEmpty").hidden = false;
+        $("trendEmpty").textContent = n
+          ? "尚未記錄任何症狀，無法顯示趨勢。"
+          : "資料不足，請先新增經期紀錄。";
+      }
+    })();
+  </script>
 </body>
 </html>
