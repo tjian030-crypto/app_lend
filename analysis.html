@@ -145,7 +145,95 @@
   </main>
 
   <script>
-    (function () {
+    /* ===== Supabase 連線（經期紀錄資料表 period_records） ===== */
+    var SUPABASE_URL = "https://mtbpasfwppokhtgkvnsn.supabase.co";
+    var SUPABASE_KEY = "sb_publishable_TqTl_3GwXjlO1SGUUNdUYQ_VwDYl7Ss";
+
+    var PeriodDB = (function () {
+      var ENDPOINT = SUPABASE_URL + "/rest/v1/period_records";
+
+      async function request(method, query, body) {
+        var headers = { apikey: SUPABASE_KEY };
+        if (body) {
+          headers["Content-Type"] = "application/json";
+          headers["Prefer"] = "return=minimal";
+        }
+        var res = await fetch(ENDPOINT + query, {
+          method: method,
+          headers: headers,
+          body: body ? JSON.stringify(body) : undefined
+        });
+        if (!res.ok) {
+          var info = {};
+          try { info = await res.json(); } catch (e) {}
+          var err = new Error(info.message || ("HTTP " + res.status));
+          err.code = info.code || String(res.status);
+          throw err;
+        }
+        return method === "GET" ? res.json() : null;
+      }
+
+      // 資料庫欄位 → 頁面欄位
+      function fromRow(r) {
+        return {
+          id: r.id,
+          start: r.start_date,
+          end: r.end_date,
+          flow: r.flow_level,
+          symptoms: Array.isArray(r.symptoms) ? r.symptoms : [],
+          mood: r.mood,
+          note: r.note || ""
+        };
+      }
+
+      // 頁面欄位 → 資料庫欄位
+      function toRow(rec) {
+        return {
+          start_date: rec.start,
+          end_date: rec.end,
+          flow_level: rec.flow,
+          symptoms: rec.symptoms,
+          mood: rec.mood,
+          note: rec.note || null
+        };
+      }
+
+      return {
+        list: async function () {
+          var rows = await request("GET", "?select=*&order=start_date.asc");
+          return rows.map(fromRow);
+        },
+        insert: function (rec) { return request("POST", "", toRow(rec)); },
+        update: function (id, rec) { return request("PATCH", "?id=eq." + encodeURIComponent(id), toRow(rec)); },
+        remove: function (id) { return request("DELETE", "?id=eq." + encodeURIComponent(id)); },
+
+        errorText: function (err) {
+          var msg = (err && err.message) || String(err);
+          var code = err && err.code;
+          if (code === "42501" || code === "401" || code === "403" || /row-level security|permission denied/i.test(msg)) {
+            return "目前尚未登入，無法新增、修改或刪除紀錄（需登入後才能寫入）。";
+          }
+          if (code === "23505") return "這個開始日期已經有紀錄了，請改用「修改」。";
+          if (/failed to fetch|networkerror|load failed/i.test(msg)) {
+            return "無法連線到 Supabase，請檢查網路連線。";
+          }
+          return "操作失敗：" + msg;
+        },
+
+        banner: function (text) {
+          var main = document.querySelector("main");
+          if (!main) return;
+          var div = document.createElement("div");
+          div.setAttribute("role", "alert");
+          div.style.cssText = "padding:14px 20px;margin-bottom:16px;border-radius:20px;background:#f9dce5;color:#4a1f31;font-size:0.95rem;";
+          div.textContent = text;
+          var hero = main.querySelector(".hero");
+          main.insertBefore(div, hero ? hero.nextSibling : main.firstChild);
+        }
+      };
+    })();
+
+    (async function () {
       var KEY = "periodTracker.records.v1";
       var DAY = 86400000;
       var MAX_PROJECT = 12;
@@ -175,20 +263,19 @@
       }
 
       // ===== 讀取紀錄 =====
-      function load() {
+      async function load() {
         try {
-          var a = JSON.parse(localStorage.getItem(KEY));
-          if (!Array.isArray(a)) return [];
+          var a = await PeriodDB.list();
           return a.filter(function (r) {
-            return r && DATE_RE.test(r.start) && DATE_RE.test(r.end) && r.end >= r.start;
-          }).map(function (r) {
-            r.symptoms = Array.isArray(r.symptoms) ? r.symptoms : [];
-            return r;
+            return DATE_RE.test(r.start) && DATE_RE.test(r.end) && r.end >= r.start;
           });
-        } catch (e) { return []; }
+        } catch (e) {
+          PeriodDB.banner(PeriodDB.errorText(e));
+          return [];
+        }
       }
 
-      var records = load().sort(function (a, b) { return a.start < b.start ? -1 : a.start > b.start ? 1 : 0; });
+      var records = (await load()).sort(function (a, b) { return a.start < b.start ? -1 : a.start > b.start ? 1 : 0; });
       var n = records.length;
       var now = new Date();
       var today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
