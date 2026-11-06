@@ -151,6 +151,94 @@
   </main>
 
   <script>
+    /* ===== Supabase 連線（經期紀錄資料表 period_records） ===== */
+    var SUPABASE_URL = "https://mtbpasfwppokhtgkvnsn.supabase.co";
+    var SUPABASE_KEY = "sb_publishable_TqTl_3GwXjlO1SGUUNdUYQ_VwDYl7Ss";
+
+    var PeriodDB = (function () {
+      var ENDPOINT = SUPABASE_URL + "/rest/v1/period_records";
+
+      async function request(method, query, body) {
+        var headers = { apikey: SUPABASE_KEY };
+        if (body) {
+          headers["Content-Type"] = "application/json";
+          headers["Prefer"] = "return=minimal";
+        }
+        var res = await fetch(ENDPOINT + query, {
+          method: method,
+          headers: headers,
+          body: body ? JSON.stringify(body) : undefined
+        });
+        if (!res.ok) {
+          var info = {};
+          try { info = await res.json(); } catch (e) {}
+          var err = new Error(info.message || ("HTTP " + res.status));
+          err.code = info.code || String(res.status);
+          throw err;
+        }
+        return method === "GET" ? res.json() : null;
+      }
+
+      // 資料庫欄位 → 頁面欄位
+      function fromRow(r) {
+        return {
+          id: r.id,
+          start: r.start_date,
+          end: r.end_date,
+          flow: r.flow_level,
+          symptoms: Array.isArray(r.symptoms) ? r.symptoms : [],
+          mood: r.mood,
+          note: r.note || ""
+        };
+      }
+
+      // 頁面欄位 → 資料庫欄位
+      function toRow(rec) {
+        return {
+          start_date: rec.start,
+          end_date: rec.end,
+          flow_level: rec.flow,
+          symptoms: rec.symptoms,
+          mood: rec.mood,
+          note: rec.note || null
+        };
+      }
+
+      return {
+        list: async function () {
+          var rows = await request("GET", "?select=*&order=start_date.asc");
+          return rows.map(fromRow);
+        },
+        insert: function (rec) { return request("POST", "", toRow(rec)); },
+        update: function (id, rec) { return request("PATCH", "?id=eq." + encodeURIComponent(id), toRow(rec)); },
+        remove: function (id) { return request("DELETE", "?id=eq." + encodeURIComponent(id)); },
+
+        errorText: function (err) {
+          var msg = (err && err.message) || String(err);
+          var code = err && err.code;
+          if (code === "42501" || code === "401" || code === "403" || /row-level security|permission denied/i.test(msg)) {
+            return "目前尚未登入，無法新增、修改或刪除紀錄（需登入後才能寫入）。";
+          }
+          if (code === "23505") return "這個開始日期已經有紀錄了，請改用「修改」。";
+          if (/failed to fetch|networkerror|load failed/i.test(msg)) {
+            return "無法連線到 Supabase，請檢查網路連線。";
+          }
+          return "操作失敗：" + msg;
+        },
+
+        banner: function (text) {
+          var main = document.querySelector("main");
+          if (!main) return;
+          var div = document.createElement("div");
+          div.setAttribute("role", "alert");
+          div.style.cssText = "padding:14px 20px;margin-bottom:16px;border-radius:20px;background:#f9dce5;color:#4a1f31;font-size:0.95rem;";
+          div.textContent = text;
+          var hero = main.querySelector(".hero");
+          main.insertBefore(div, hero ? hero.nextSibling : main.firstChild);
+        }
+      };
+    })();
+
     (function () {
       var KEY = "periodTracker.records.v1";
       var DAY = 86400000;
@@ -158,7 +246,7 @@
       var SYMPTOMS = ["腹痛", "頭痛", "乳房脹痛", "腰痠", "疲倦", "噁心"];
       var MOODS = ["平穩", "開心", "焦慮", "易怒", "低落"];
 
-      var records = load();
+      var records = [];
       var editingId = null;
 
       function $(id) { return document.getElementById(id); }
@@ -174,15 +262,8 @@
         return e;
       }
 
-      function load() {
-        try {
-          var a = JSON.parse(localStorage.getItem(KEY));
-          return Array.isArray(a) ? a : [];
-        } catch (e) { return []; }
-      }
-      function save() {
-        try { localStorage.setItem(KEY, JSON.stringify(records)); return true; }
-        catch (e) { return false; }
+      async function reload() {
+        records = await PeriodDB.list();
       }
 
       var now = new Date();
@@ -338,7 +419,7 @@
       $("startInput").max = todayIso;
       $("startInput").addEventListener("change", syncEndMin);
 
-      form.addEventListener("submit", function (e) {
+      form.addEventListener("submit", async function (e) {
         e.preventDefault();
         var start = $("startInput").value;
         var end = $("endInput").value;
@@ -357,25 +438,18 @@
           note: $("noteInput").value.trim()
         };
 
-        var backup = JSON.stringify(records);
         var wasEditing = editingId !== null;
-
-        if (wasEditing) {
-          var idx = findIndex(editingId);
-          if (idx !== -1) {
-            data.id = editingId;
-            records[idx] = data;
-          }
-        } else {
-          data.id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-          records.push(data);
+        var submitBtn = $("submitBtn");
+        submitBtn.disabled = true;
+        try {
+          if (wasEditing) await PeriodDB.update(editingId, data);
+          else await PeriodDB.insert(data);
+          await reload();
+        } catch (err) {
+          submitBtn.disabled = false;
+          return showMsg(PeriodDB.errorText(err), true);
         }
-
-        if (!save()) {
-          records = JSON.parse(backup);
-          return showMsg("無法儲存，請確認瀏覽器允許儲存資料。", true);
-        }
-
+        submitBtn.disabled = false;
         resetForm();
         render();
         showMsg(wasEditing ? "已儲存修改。" : "已新增紀錄。", false);
@@ -387,7 +461,7 @@
         render();
       });
 
-      $("records").addEventListener("click", function (e) {
+      $("records").addEventListener("click", async function (e) {
         var btn = e.target.closest("button[data-action]");
         if (!btn) return;
         var idx = findIndex(btn.dataset.id);
@@ -397,12 +471,12 @@
           startEdit(records[idx]);
         } else if (btn.dataset.action === "delete") {
           if (!window.confirm("確定要刪除這筆紀錄嗎？")) return;
-          var backup = JSON.stringify(records);
           var removedId = records[idx].id;
-          records.splice(idx, 1);
-          if (!save()) {
-            records = JSON.parse(backup);
-            return showMsg("無法刪除，請確認瀏覽器允許儲存資料。", true);
+          try {
+            await PeriodDB.remove(removedId);
+            await reload();
+          } catch (err) {
+            return showMsg(PeriodDB.errorText(err), true);
           }
           if (editingId === removedId) resetForm();
           showMsg("已刪除紀錄。", false);
@@ -425,6 +499,9 @@
         syncEndMin();
       }
       render();
+      reload().then(render).catch(function (err) {
+        showMsg(PeriodDB.errorText(err), true);
+      });
     })();
   </script>
 </body>
