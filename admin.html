@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>管理後台｜月律</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    /* 本頁專用樣式（不更動 style.css） */
+    .page-sub .hero { margin-bottom: 16px; }
+    .page-sub > .card + .card { margin-top: 16px; }
+    .users { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; }
+    .user { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 12px; padding: 14px 16px; border: 1.5px solid var(--line); border-radius: var(--radius-sm); background: var(--bg); }
+    .user-main { min-width: 0; }
+    .user-name { font-weight: 700; overflow-wrap: anywhere; }
+    .user-sub { font-size: 0.85rem; color: var(--muted); overflow-wrap: anywhere; }
+    .role-tag { display: inline-block; margin-left: 8px; padding: 1px 10px; border-radius: 999px; background: var(--rose-soft); color: var(--period-ink); font-size: 0.8rem; font-weight: 400; }
+    .role-tag.admin { background: var(--lav); color: var(--lav-ink); }
+    .btn-small { min-height: 40px; padding: 0 16px; border: 1.5px solid var(--line); border-radius: 10px; background: var(--surface); cursor: pointer; }
+    .btn-small:hover { background: var(--bg); }
+    .btn-small:disabled { opacity: 0.45; cursor: not-allowed; }
+    .count { margin: 0 0 12px; font-size: 0.9rem; color: var(--muted); }
+    .note { margin: 0; font-size: 0.85rem; color: var(--muted); }
+    .form-msg.is-ok { color: #1f5a46; }
+  </style>
+</head>
+<body>
+  <nav class="nav" aria-label="主選單">
+    <div class="nav-inner">
+      <a class="nav-brand" href="index.html">月律</a>
+      <ul class="nav-links">
+        <li><a href="index.html">首頁</a></li>
+        <li><a href="record.html">經期紀錄</a></li>
+        <li><a href="statistics.html">週期統計</a></li>
+        <li><a href="analysis.html">週期分析</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <main class="page page-sub">
+    <header class="hero">
+      <h1>管理後台</h1>
+    </header>
+
+    <section class="card" aria-labelledby="usersTitle">
+      <h2 id="usersTitle">使用者與角色</h2>
+      <p class="count" id="count"></p>
+      <ul class="users" id="users"></ul>
+      <p class="form-msg" id="userMsg" role="status" aria-live="polite"></p>
+    </section>
+
+    <section class="card" aria-labelledby="addTitle">
+      <h2 id="addTitle">授權新的管理者</h2>
+      <form class="edit-form" id="addForm" novalidate>
+        <div class="field">
+          <label for="adminEmail">新管理者的 Email（尚未註冊）</label>
+          <input type="email" id="adminEmail" autocomplete="off" required>
+        </div>
+        <button type="submit" class="btn">授權此信箱</button>
+        <p class="note">授權後，請到 Supabase 後台的 Authentication → Users 使用「Invite user」邀請此信箱，對方設定密碼後即為管理者。已註冊的使用者請直接在上方列表調整角色。</p>
+        <p class="form-msg" id="addMsg" role="status" aria-live="polite"></p>
+      </form>
+    </section>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+  <script src="auth.js"></script>
+  <script>
+    (async function () {
+      if (!(await Auth.requireAdmin())) return;
+
+      function $(id) { return document.getElementById(id); }
+      function h(tag, cls, text) {
+        var e = document.createElement(tag);
+        if (cls) e.className = cls;
+        if (text !== undefined) e.textContent = text;
+        return e;
+      }
+      function setMsg(id, text, kind) {
+        var el = $(id);
+        el.textContent = text;
+        el.className = "form-msg" + (kind === "error" ? " is-error" : kind === "ok" ? " is-ok" : "");
+      }
+      function rpcError(err) {
+        var m = (err && err.message) || "";
+        if (err && err.code === "42501") return "沒有管理者權限。";
+        return m || "操作失敗，請稍後再試。";
+      }
+
+      var users = [];
+
+      async function loadUsers() {
+        var res = await sb.from("profiles")
+          .select("id,student_id,email,role,created_at")
+          .order("created_at", { ascending: false });
+        if (res.error) {
+          setMsg("userMsg", "無法讀取使用者：" + rpcError(res.error), "error");
+          return;
+        }
+        users = res.data;
+        renderUsers();
+      }
+
+      function renderUsers() {
+        $("count").textContent = "共 " + users.length + " 位使用者";
+        var ul = $("users");
+        ul.innerHTML = "";
+
+        users.forEach(function (u) {
+          var isAdmin = u.role === "admin";
+          var isSelf = u.id === Auth.user.id;
+
+          var li = h("li", "user");
+          var main = h("div", "user-main");
+          var name = h("div", "user-name", u.student_id || u.email);
+          name.appendChild(h("span", "role-tag" + (isAdmin ? " admin" : ""), isAdmin ? "管理者" : "一般使用者"));
+          main.appendChild(name);
+          main.appendChild(h("div", "user-sub", u.email + "　註冊於 " + String(u.created_at).slice(0, 10)));
+          li.appendChild(main);
+
+          var btn = h("button", "btn-small", isAdmin ? "改為一般使用者" : "設為管理者");
+          btn.type = "button";
+          btn.disabled = isSelf;
+          if (isSelf) btn.title = "不能變更自己的角色";
+          btn.addEventListener("click", function () { changeRole(u, isAdmin ? "user" : "admin"); });
+          li.appendChild(btn);
+
+          ul.appendChild(li);
+        });
+      }
+
+      async function changeRole(u, newRole) {
+        var label = newRole === "admin" ? "設為管理者" : "改為一般使用者";
+        if (!window.confirm("確定要將 " + (u.student_id || u.email) + " " + label + "嗎？")) return;
+
+        var res = await sb.rpc("admin_set_role", { p_user_id: u.id, p_role: newRole });
+        if (res.error) return setMsg("userMsg", rpcError(res.error), "error");
+
+        setMsg("userMsg", "已更新角色。", "ok");
+        loadUsers();
+      }
+
+      $("addForm").addEventListener("submit", async function (e) {
+        e.preventDefault();
+        var email = $("adminEmail").value.trim().toLowerCase();
+        if (!email) return setMsg("addMsg", "請輸入 Email。", "error");
+
+        var res = await sb.rpc("admin_add_admin_email", { p_email: email });
+        if (res.error) return setMsg("addMsg", rpcError(res.error), "error");
+
+        $("addForm").reset();
+        setMsg("addMsg", "已授權 " + email + "，請到後台邀請此信箱。", "ok");
+      });
+
+      loadUsers();
+    })();
+  </script>
+</body>
+</html>
