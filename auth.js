@@ -27,52 +27,91 @@ var Auth = (function () {
     return true;
   }
 
-  // 帳號列放在 .hero 內，顯示目前登入者；登出入口在導覽列
-  function mountBar() {
-    var hero = document.querySelector(".hero");
-    if (!hero || document.querySelector(".account-bar")) return;
+  // 導覽列最右側：未登入顯示「登入」；登入後變成「使用者」，點開可看到帳號與登出
+  function mountNav() {
+    var link = document.getElementById("navAuth");
+    if (!link) return;
+    var li = link.parentNode;
 
     var style = document.createElement("style");
     style.textContent =
-      ".account-bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin-top:12px;" +
-      "padding:10px 16px;border-radius:14px;background:var(--lav-soft);font-size:0.9rem;color:var(--ink)}" +
-      ".account-bar .who{flex:1;min-width:0;overflow-wrap:anywhere}" +
-      ".account-bar a,.account-bar button{display:inline-flex;align-items:center;min-height:36px;" +
-      "padding:0 14px;border:1.5px solid var(--line);border-radius:10px;background:var(--surface);" +
-      "color:var(--ink);font:inherit;text-decoration:none;cursor:pointer}" +
-      ".account-bar a:hover,.account-bar button:hover{background:var(--bg)}";
+      ".nav-links li.has-menu{position:relative}" +
+      ".nav-links .user-menu{position:absolute;right:0;top:calc(100% + 6px);z-index:20;" +
+      "width:max-content;min-width:230px;max-width:calc(100vw - 24px);padding:16px;text-align:left;" +
+      "border:1px solid var(--line);border-radius:14px;background:var(--surface);" +
+      "box-shadow:0 8px 28px rgba(120,90,110,0.18);color:var(--ink)}" +
+      ".user-menu .um-label{margin:0 0 6px;font-size:0.8rem;color:var(--muted)}" +
+      ".user-menu .um-name{margin:0;font-weight:700;overflow-wrap:anywhere}" +
+      ".user-menu .um-sub{margin:2px 0 0;font-size:0.85rem;color:var(--muted);overflow-wrap:anywhere}" +
+      ".user-menu .um-role{display:inline-block;margin-top:8px;padding:1px 10px;border-radius:999px;" +
+      "background:var(--rose-soft);color:var(--period-ink);font-size:0.8rem}" +
+      ".user-menu .um-role.admin{background:var(--lav);color:var(--lav-ink)}" +
+      ".nav-links .user-menu a,.user-menu button{display:flex;align-items:center;justify-content:center;" +
+      "width:100%;min-height:42px;margin-top:12px;padding:0 14px;border:1.5px solid var(--line);" +
+      "border-radius:10px;background:var(--surface);color:var(--ink);font:inherit;font-size:0.95rem;" +
+      "text-decoration:none;cursor:pointer}" +
+      ".nav-links .user-menu a:hover,.user-menu button:hover{background:var(--bg)}" +
+      ".user-menu button.logout{margin-top:10px;background:var(--rose-soft);border-color:var(--rose-soft);" +
+      "color:var(--period-ink);font-weight:700}";
     document.head.appendChild(style);
 
-    var bar = document.createElement("div");
-    bar.className = "account-bar";
-
-    var who = document.createElement("span");
-    who.className = "who";
-    who.textContent =
-      "已登入：" + (self.profile.student_id || self.profile.email || "") +
-      (self.profile.role === "admin" ? "（管理者）" : "");
-    bar.appendChild(who);
-
-    if (self.profile.role === "admin") {
-      var link = document.createElement("a");
-      link.href = "admin.html";
-      link.textContent = "管理後台";
-      bar.appendChild(link);
-    }
-
-    hero.appendChild(bar);
-  }
-
-  // 導覽列最右邊的入口：未登入顯示「登入」，登入後變成「登出」
-  function mountNav(loggedIn) {
-    var link = document.getElementById("navAuth");
-    if (!link || !loggedIn) return;
-    link.textContent = "登出";
+    link.textContent = "使用者";
     link.setAttribute("href", "#");
     link.removeAttribute("aria-current");
+    link.setAttribute("aria-haspopup", "true");
+    link.setAttribute("aria-expanded", "false");
+    li.classList.add("has-menu");
+
+    var menu = document.createElement("div");
+    menu.className = "user-menu";
+    menu.hidden = true;
+
+    function line(cls, text) {
+      var p = document.createElement("p");
+      p.className = cls;
+      p.textContent = text;
+      menu.appendChild(p);
+    }
+
+    var isAdmin = self.profile.role === "admin";
+    line("um-label", "目前登入的帳號");
+    line("um-name", self.profile.student_id || self.profile.email || "");
+    if (self.profile.student_id && self.profile.email) line("um-sub", self.profile.email);
+
+    var role = document.createElement("span");
+    role.className = "um-role" + (isAdmin ? " admin" : "");
+    role.textContent = isAdmin ? "管理者" : "一般使用者";
+    menu.appendChild(role);
+
+    if (isAdmin) {
+      var admin = document.createElement("a");
+      admin.href = "admin.html";
+      admin.textContent = "管理後台";
+      menu.appendChild(admin);
+    }
+
+    var out = document.createElement("button");
+    out.type = "button";
+    out.className = "logout";
+    out.textContent = "登出";
+    out.addEventListener("click", function () { self.logout(); });
+    menu.appendChild(out);
+
+    li.appendChild(menu);
+
+    function setOpen(open) {
+      menu.hidden = !open;
+      link.setAttribute("aria-expanded", String(open));
+    }
     link.addEventListener("click", function (e) {
       e.preventDefault();
-      self.logout();
+      setOpen(menu.hidden);
+    });
+    document.addEventListener("click", function (e) {
+      if (!li.contains(e.target)) setOpen(false);
+    });
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape") setOpen(false);
     });
   }
 
@@ -83,8 +122,7 @@ var Auth = (function () {
       location.replace("login.html");
       return false;
     }
-    mountBar();
-    mountNav(true);
+    mountNav();
     return true;
   };
 
