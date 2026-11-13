@@ -27,7 +27,7 @@ var Auth = (function () {
     return true;
   }
 
-  // 帳號列放在 .hero 內，不更動導覽列與頁面版面
+  // 帳號列放在 .hero 內，顯示目前登入者；登出入口在導覽列
   function mountBar() {
     var hero = document.querySelector(".hero");
     if (!hero || document.querySelector(".account-bar")) return;
@@ -60,13 +60,20 @@ var Auth = (function () {
       bar.appendChild(link);
     }
 
-    var out = document.createElement("button");
-    out.type = "button";
-    out.textContent = "登出";
-    out.addEventListener("click", function () { self.logout(); });
-    bar.appendChild(out);
-
     hero.appendChild(bar);
+  }
+
+  // 導覽列最右邊的入口：未登入顯示「登入」，登入後變成「登出」
+  function mountNav(loggedIn) {
+    var link = document.getElementById("navAuth");
+    if (!link || !loggedIn) return;
+    link.textContent = "登出";
+    link.setAttribute("href", "#");
+    link.removeAttribute("aria-current");
+    link.addEventListener("click", function (e) {
+      e.preventDefault();
+      self.logout();
+    });
   }
 
   // 未登入就導向登入頁；回傳 true 表示可以繼續執行頁面
@@ -77,6 +84,7 @@ var Auth = (function () {
       return false;
     }
     mountBar();
+    mountNav(true);
     return true;
   };
 
