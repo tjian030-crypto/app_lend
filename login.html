@@ -7,6 +7,8 @@
   <link rel="stylesheet" href="style.css">
   <style>
     /* 本頁專用樣式（不更動 style.css） */
+    /* style.css 的 .edit-form 會蓋掉 hidden，這裡補上才能真正隱藏另一個表單 */
+    [hidden] { display: none !important; }
     .auth-wrap { max-width: 480px; margin: 0 auto; }
     .tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; margin-bottom: 18px; border-radius: 14px; background: var(--bg); }
     .tab { min-height: 44px; border: 0; border-radius: 10px; background: transparent; color: var(--muted); cursor: pointer; }
@@ -116,6 +118,7 @@
       }
       $("tabLogin").addEventListener("click", function () { showMode("login"); });
       $("tabRegister").addEventListener("click", function () { showMode("register"); });
+      if (location.hash === "#register") showMode("register");
 
       function authError(err) {
         var m = (err && err.message) || "";
