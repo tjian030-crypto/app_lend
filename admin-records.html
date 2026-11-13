@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>經期紀錄管理｜月律</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    /* 本頁專用樣式（不更動 style.css） */
+    [hidden] { display: none !important; }
+    .page-sub .hero { margin-bottom: 16px; }
+    .privacy-note { margin: 0 0 16px; padding: 12px 18px; border-radius: var(--radius-sm); background: var(--rose-soft); color: var(--period-ink); font-size: 0.9rem; }
+    .record-layout { display: grid; gap: 16px; }
+    .hint { margin: 0; font-size: 0.85rem; color: var(--muted); }
+    .field input[readonly] { background: var(--line); color: var(--muted); }
+
+    .group { margin: 0; padding: 0; border: 0; min-width: 0; }
+    .group legend { padding: 0; margin-bottom: 8px; font-size: 0.9rem; color: var(--muted); }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+    .chip { position: relative; cursor: pointer; }
+    .chip input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+    .chip span { display: inline-flex; align-items: center; min-height: 40px; padding: 0 14px; border: 1.5px solid var(--line); border-radius: 999px; background: var(--bg); font-size: 0.9rem; transition: background 0.15s, border-color 0.15s; }
+    .chip input:checked + span { background: var(--rose-soft); border-color: var(--rose); color: var(--period-ink); font-weight: 700; }
+    .chips.mood .chip input:checked + span { background: var(--lav-soft); border-color: var(--lav); color: var(--lav-ink); }
+    .chip input:focus-visible + span { outline: 3px solid var(--lav); outline-offset: 2px; }
+
+    .field textarea { width: 100%; min-height: 90px; padding: 10px 14px; resize: vertical; border: 1.5px solid var(--line); border-radius: var(--radius-sm); background: var(--bg); }
+    .field textarea:focus { border-color: var(--lav); }
+
+    .form-actions { display: grid; gap: 10px; }
+    .btn-ghost { min-height: 48px; border: 1.5px solid var(--line); border-radius: var(--radius-sm); background: transparent; cursor: pointer; }
+    .btn-ghost:hover { background: var(--bg); }
+    .form-msg.is-ok { color: #1f5a46; }
+    .stamp-box { margin: 0; padding: 10px 14px; border-radius: var(--radius-sm); background: var(--lav-soft); font-size: 0.85rem; color: var(--lav-ink); }
+
+    .list-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+    .list-head h2 { margin: 0; }
+    .count { font-size: 0.9rem; color: var(--muted); }
+    .search-row { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: end; margin-bottom: 16px; }
+
+    .records { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; }
+    .record { padding: 16px; border: 1.5px solid var(--line); border-radius: var(--radius-sm); background: var(--bg); }
+    .record.is-editing { border-color: var(--lav); background: var(--lav-soft); }
+    .owner { font-weight: 700; overflow-wrap: anywhere; }
+    .owner small { display: block; font-weight: 400; font-size: 0.85rem; color: var(--muted); }
+    .record-top { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; margin-top: 8px; }
+    .record-date { font-weight: 700; }
+    .record-days { font-size: 0.9rem; color: var(--muted); }
+    .tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+    .tag { padding: 2px 10px; border-radius: 999px; background: var(--rose-soft); color: var(--period-ink); font-size: 0.85rem; }
+    .tag-flow { background: var(--period); font-weight: 700; }
+    .tag-mood { background: var(--lav); color: var(--lav-ink); }
+    .record-note { margin: 10px 0 0; font-size: 0.9rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .stamps { margin: 10px 0 0; font-size: 0.8rem; color: var(--muted); }
+    .record-actions { display: flex; gap: 8px; margin-top: 12px; }
+    .btn-small { min-height: 40px; padding: 0 16px; border: 1.5px solid var(--line); border-radius: 10px; background: var(--surface); cursor: pointer; }
+    .btn-small:hover { background: var(--bg); }
+    .btn-small.danger { color: #b4435f; }
+    .empty { margin: 0; padding: 24px 8px; text-align: center; color: var(--muted); }
+
+    @media (min-width: 860px) {
+      .record-layout { grid-template-columns: 1fr 1.2fr; align-items: start; }
+    }
+  </style>
+</head>
+<body>
+  <nav class="nav" aria-label="主選單">
+    <div class="nav-inner">
+      <a class="nav-brand" href="index.html">月律</a>
+      <ul class="nav-links">
+        <li><a href="index.html">首頁</a></li>
+        <li><a href="record.html">經期紀錄</a></li>
+        <li><a href="statistics.html">週期統計</a></li>
+        <li><a href="analysis.html">週期分析</a></li>
+        <li><a href="login.html" id="navAuth">登入</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <main class="page page-sub">
+    <header class="hero">
+      <h1>經期紀錄管理</h1>
+    </header>
+
+    <p class="privacy-note">此頁包含所有使用者的健康資料，僅限管理者使用，請勿外流或截圖分享。</p>
+
+    <div class="record-layout">
+      <!-- 新增 / 修改表單 -->
+      <section class="card" id="formCard" aria-labelledby="formTitle">
+        <h2 id="formTitle">新增使用者經期紀錄</h2>
+        <form class="edit-form" id="recordForm" novalidate>
+          <div class="field">
+            <label for="sidInput">使用者學號</label>
+            <input type="text" id="sidInput" autocomplete="off" required>
+            <p class="hint" id="sidHint">請輸入已註冊使用者的學號。</p>
+          </div>
+
+          <div class="field-row">
+            <div class="field">
+              <label for="startInput">月經開始日期</label>
+              <input type="date" id="startInput" required>
+            </div>
+            <div class="field">
+              <label for="endInput">月經結束日期</label>
+              <input type="date" id="endInput" required>
+            </div>
+          </div>
+
+          <fieldset class="group">
+            <legend>經血量</legend>
+            <div class="chips" id="flowGroup"></div>
+          </fieldset>
+
+          <fieldset class="group">
+            <legend>身體症狀（可多選）</legend>
+            <div class="chips" id="symptomGroup"></div>
+          </fieldset>
+
+          <fieldset class="group">
+            <legend>情緒變化</legend>
+            <div class="chips mood" id="moodGroup"></div>
+          </fieldset>
+
+          <div class="field">
+            <label for="noteInput">備註</label>
+            <textarea id="noteInput" maxlength="300"></textarea>
+          </div>
+
+          <p class="stamp-box" id="stampBox">新增與修改日期由系統自動記錄。</p>
+
+          <div class="form-actions">
+            <button type="submit" class="btn" id="submitBtn">新增紀錄</button>
+            <button type="button" class="btn-ghost" id="cancelBtn" hidden>取消修改</button>
+          </div>
+          <p class="form-msg" id="formMsg" role="status" aria-live="polite"></p>
+        </form>
+      </section>
+
+      <!-- 所有使用者的紀錄 -->
+      <section class="card" aria-labelledby="listTitle">
+        <div class="list-head">
+          <h2 id="listTitle">所有使用者的紀錄</h2>
+          <span class="count" id="count"></span>
+        </div>
+        <div class="search-row">
+          <div class="field">
+            <label for="searchInput">搜尋學號或帳號（Email）</label>
+            <input type="search" id="searchInput" placeholder="例如：學號或 Email 的一部分">
+          </div>
+          <button type="button" class="btn-ghost" id="clearSearch">清除</button>
+        </div>
+        <ul class="records" id="records"></ul>
+        <p class="empty" id="empty" hidden></p>
+      </section>
+    </div>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+  <script src="auth.js"></script>
+  <script>
+    (async function () {
+      // 一般使用者會被導回首頁；真正的限制由資料庫 RLS 強制執行
+      if (!(await Auth.requireAdmin())) return;
+
+      var DAY = 86400000;
+      var LIMIT = 200;
+      var FLOWS = ["少", "中", "多"];
+      var SYMPTOMS = ["腹痛", "頭痛", "乳房脹痛", "腰痠", "疲倦", "噁心"];
+      var MOODS = ["平穩", "開心", "焦慮", "易怒", "低落"];
+
+      var records = [];
+      var editing = null; // 正在修改的紀錄
+      var searchTimer = null;
+      var loadSeq = 0;
+
+      function $(id) { return document.getElementById(id); }
+      function pad(n) { return String(n).padStart(2, "0"); }
+      function iso(d) { return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); }
+      function parse(s) { var p = s.split("-").map(Number); return new Date(p[0], p[1] - 1, p[2]); }
+      function utc(d) { return Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()); }
+      function fmtDate(s) { var d = parse(s); return d.getFullYear() + "年" + (d.getMonth() + 1) + "月" + d.getDate() + "日"; }
+      function fmtTime(s) {
+        var d = new Date(s);
+        if (isNaN(d)) return "—";
+        return d.getFullYear() + "/" + pad(d.getMonth() + 1) + "/" + pad(d.getDate()) + " " + pad(d.getHours()) + ":" + pad(d.getMinutes());
+      }
+      function stampText(r) {
+        var edited = new Date(r.updated_at) - new Date(r.created_at) > 2000;
+        return "新增於 " + fmtTime(r.created_at) + "　" + (edited ? "最後修改於 " + fmtTime(r.updated_at) : "尚未修改");
+      }
+      function h(tag, cls, text) {
+        var e = document.createElement(tag);
+        if (cls) e.className = cls;
+        if (text !== undefined) e.textContent = text;
+        return e;
+      }
+      function errText(err) {
+        return err && err.custom ? err.message : PeriodDB.errorText(err);
+      }
+
+      var todayIso = iso(new Date());
+      var form = $("recordForm");
+
+      // ===== 表單 =====
+      function buildChips(box, type, name, items) {
+        items.forEach(function (item) {
+          var label = h("label", "chip");
+          var input = document.createElement("input");
+          input.type = type;
+          input.name = name;
+          input.value = item;
+          label.appendChild(input);
+          label.appendChild(h("span", null, item));
+          box.appendChild(label);
+        });
+      }
+      buildChips($("flowGroup"), "radio", "flow", FLOWS);
+      buildChips($("symptomGroup"), "checkbox", "symptom", SYMPTOMS);
+      buildChips($("moodGroup"), "radio", "mood", MOODS);
+
+      function setRadio(name, value) {
+        var el = form.querySelector('input[name="' + name + '"][value="' + value + '"]');
+        if (el) el.checked = true;
+      }
+      function getRadio(name) {
+        var el = form.querySelector('input[name="' + name + '"]:checked');
+        return el ? el.value : "";
+      }
+      function getSymptoms() {
+        return Array.prototype.map.call(form.querySelectorAll('input[name="symptom"]:checked'), function (i) { return i.value; });
+      }
+      function showMsg(text, kind) {
+        var el = $("formMsg");
+        el.textContent = text;
+        el.className = "form-msg" + (kind === "error" ? " is-error" : kind === "ok" ? " is-ok" : "");
+      }
+      function syncEndMin() { $("endInput").min = $("startInput").value || ""; }
+
+      function resetForm() {
+        editing = null;
+        form.reset();
+        setRadio("flow", "中");
+        setRadio("mood", "平穩");
+        $("sidInput").readOnly = false;
+        $("sidHint").textContent = "請輸入已註冊使用者的學號。";
+        $("endInput").min = "";
+        $("formTitle").textContent = "新增使用者經期紀錄";
+        $("submitBtn").textContent = "新增紀錄";
+        $("cancelBtn").hidden = true;
+        $("stampBox").textContent = "新增與修改日期由系統自動記錄。";
+      }
+
+      function startEdit(r) {
+        editing = r;
+        $("sidInput").value = r.student_id || "";
+        $("sidInput").readOnly = true;
+        $("sidHint").textContent = "學號不可修改；若學號填錯，請刪除後重新新增。";
+        $("startInput").value = r.start_date;
+        $("endInput").value = r.end_date;
+        syncEndMin();
+        setRadio("flow", r.flow_level);
+        setRadio("mood", r.mood);
+        Array.prototype.forEach.call(form.querySelectorAll('input[name="symptom"]'), function (i) {
+          i.checked = r.symptoms.indexOf(i.value) !== -1;
+        });
+        $("noteInput").value = r.note || "";
+        $("formTitle").textContent = "修改經期紀錄";
+        $("submitBtn").textContent = "儲存修改";
+        $("cancelBtn").hidden = false;
+        $("stampBox").textContent = stampText(r) + "（儲存後將自動更新修改日期）";
+        showMsg("", "");
+        render();
+        $("formCard").scrollIntoView({ block: "start" });
+        $("startInput").focus();
+      }
+
+      // ===== 讀取（依學號或 Email 搜尋）=====
+      function escapeLike(s) { return s.replace(/[\\%_]/g, "\\$&"); }
+
+      async function fetchRecords(term) {
+        var q = sb.from("period_records").select("*");
+
+        if (term) {
+          var like = "%" + escapeLike(term) + "%";
+          var found = await Promise.all([
+            sb.from("profiles").select("id").ilike("student_id", like).limit(100),
+            sb.from("profiles").select("id").ilike("email", like).limit(100)
+          ]);
+          var ids = {};
+          found.forEach(function (res) {
+            if (res.error) throw res.error;
+            res.data.forEach(function (p) { ids[p.id] = true; });
+          });
+          var idList = Object.keys(ids);
+          if (!idList.length) return [];
+          q = q.in("user_id", idList);
+        }
+
+        var res = await q.order("start_date", { ascending: false }).limit(LIMIT);
+        if (res.error) throw res.error;
+        var rows = res.data;
+
+        // 補上使用者的學號與 Email
+        var uids = [];
+        rows.forEach(function (r) { if (uids.indexOf(r.user_id) === -1) uids.push(r.user_id); });
+        var map = {};
+        if (uids.length) {
+          var pr = await sb.from("profiles").select("id,student_id,email").in("id", uids);
+          if (pr.error) throw pr.error;
+          pr.data.forEach(function (p) { map[p.id] = p; });
+        }
+        rows.forEach(function (r) {
+          var p = map[r.user_id];
+          r.student_id = p ? p.student_id : null;
+          r.email = p ? p.email : null;
+          r.symptoms = Array.isArray(r.symptoms) ? r.symptoms : [];
+        });
+        return rows;
+      }
+
+      async function reload() {
+        var seq = ++loadSeq;
+        try {
+          var rows = await fetchRecords($("searchInput").value.trim());
+          if (seq !== loadSeq) return; // 已有較新的搜尋
+          records = rows;
+          render();
+        } catch (err) {
+          if (seq !== loadSeq) return;
+          $("count").textContent = "";
+          $("records").innerHTML = "";
+          $("empty").hidden = false;
+          $("empty").textContent = "讀取失敗：" + errText(err);
+        }
+      }
+
+      // ===== 清單 =====
+      function render() {
+        var hasTerm = $("searchInput").value.trim() !== "";
+        $("count").textContent = "共 " + records.length + " 筆" +
+          (records.length >= LIMIT ? "（只顯示最近 " + LIMIT + " 筆，請用搜尋縮小範圍）" : "");
+
+        var ul = $("records");
+        ul.innerHTML = "";
+        var empty = $("empty");
+
+        if (!records.length) {
+          empty.hidden = false;
+          empty.textContent = hasTerm ? "找不到符合的紀錄，請換個學號或 Email 試試。" : "目前沒有任何紀錄。";
+          return;
+        }
+        empty.hidden = true;
+
+        records.forEach(function (r) {
+          var days = Math.round((utc(parse(r.end_date)) - utc(parse(r.start_date))) / DAY) + 1;
+          var li = h("li", "record" + (editing && editing.id === r.id ? " is-editing" : ""));
+
+          var owner = h("div", "owner", r.student_id || "（找不到使用者資料）");
+          if (r.email) owner.appendChild(h("small", null, r.email));
+          li.appendChild(owner);
+
+          var top = h("div", "record-top");
+          top.appendChild(h("span", "record-date", fmtDate(r.start_date) + " – " + fmtDate(r.end_date)));
+          top.appendChild(h("span", "record-days", "共 " + days + " 天"));
+          li.appendChild(top);
+
+          var tags = h("div", "tags");
+          tags.appendChild(h("span", "tag tag-flow", "經血量 " + r.flow_level));
+          r.symptoms.forEach(function (s) { tags.appendChild(h("span", "tag", s)); });
+          tags.appendChild(h("span", "tag tag-mood", "情緒 " + r.mood));
+          li.appendChild(tags);
+
+          if (r.note) li.appendChild(h("p", "record-note", r.note));
+          li.appendChild(h("p", "stamps", stampText(r)));
+
+          var actions = h("div", "record-actions");
+          var edit = h("button", "btn-small", "修改");
+          edit.type = "button";
+          edit.addEventListener("click", function () { startEdit(r); });
+          var del = h("button", "btn-small danger", "刪除");
+          del.type = "button";
+          del.addEventListener("click", function () { removeRecord(r); });
+          actions.appendChild(edit);
+          actions.appendChild(del);
+          li.appendChild(actions);
+
+          ul.appendChild(li);
+        });
+      }
+
+      // ===== 新增 / 修改 / 刪除 =====
+      async function findUserId(sid) {
+        var res = await sb.from("profiles").select("id").eq("student_id", sid).maybeSingle();
+        if (res.error) throw res.error;
+        if (!res.data) {
+          var e = new Error("找不到學號「" + sid + "」的使用者，請確認對方已完成註冊。");
+          e.custom = true;
+          throw e;
+        }
+        return res.data.id;
+      }
+
+      form.addEventListener("submit", async function (e) {
+        e.preventDefault();
+        var sid = $("sidInput").value.trim().toLowerCase();
+        var start = $("startInput").value;
+        var end = $("endInput").value;
+
+        if (!editing && !sid) return showMsg("請輸入使用者學號。", "error");
+        if (!start) return showMsg("請選擇月經開始日期。", "error");
+        if (start > todayIso) return showMsg("開始日期不能晚於今天。", "error");
+        if (!end) return showMsg("請選擇月經結束日期。", "error");
+        if (end < start) return showMsg("結束日期不能早於開始日期。", "error");
+
+        var row = {
+          start_date: start,
+          end_date: end,
+          flow_level: getRadio("flow"),
+          symptoms: getSymptoms(),
+          mood: getRadio("mood"),
+          note: $("noteInput").value.trim() || null
+        };
+
+        var wasEditing = editing !== null;
+        $("submitBtn").disabled = true;
+        try {
+          var res;
+          if (wasEditing) {
+            // created_at / updated_at 由資料庫觸發器自動處理
+            res = await sb.from("period_records").update(row).eq("id", editing.id);
+          } else {
+            row.user_id = await findUserId(sid);
+            res = await sb.from("period_records").insert(row);
+          }
+          if (res.error) throw res.error;
+        } catch (err) {
+          $("submitBtn").disabled = false;
+          return showMsg(errText(err), "error");
+        }
+        $("submitBtn").disabled = false;
+
+        resetForm();
+        await reload();
+        showMsg(wasEditing ? "已儲存修改，修改日期已自動更新。" : "已新增紀錄，新增日期已自動記錄。", "ok");
+      });
+
+      async function removeRecord(r) {
+        var who = r.student_id || "此使用者";
+        if (!window.confirm("確定要刪除 " + who + " 的這筆紀錄（" + fmtDate(r.start_date) + "）嗎？此動作無法復原。")) return;
+        var res = await sb.from("period_records").delete().eq("id", r.id);
+        if (res.error) return showMsg(errText(res.error), "error");
+        if (editing && editing.id === r.id) resetForm();
+        await reload();
+        showMsg("已刪除紀錄。", "ok");
+      }
+
+      // ===== 事件 =====
+      $("startInput").max = todayIso;
+      $("startInput").addEventListener("change", syncEndMin);
+      $("cancelBtn").addEventListener("click", function () {
+        resetForm();
+        showMsg("", "");
+        render();
+      });
+      $("searchInput").addEventListener("input", function () {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(reload, 300);
+      });
+      $("clearSearch").addEventListener("click", function () {
+        $("searchInput").value = "";
+        reload();
+        $("searchInput").focus();
+      });
+
+      resetForm();
+      reload();
+    })();
+  </script>
+</body>
+</html>
