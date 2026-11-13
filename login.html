@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>登入｜月律</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    /* 本頁專用樣式（不更動 style.css） */
+    .auth-wrap { max-width: 480px; margin: 0 auto; }
+    .tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; margin-bottom: 18px; border-radius: 14px; background: var(--bg); }
+    .tab { min-height: 44px; border: 0; border-radius: 10px; background: transparent; color: var(--muted); cursor: pointer; }
+    .tab[aria-selected="true"] { background: var(--surface); color: var(--ink); font-weight: 700; box-shadow: var(--shadow); }
+    .hint { margin: 0; font-size: 0.85rem; color: var(--muted); }
+    .form-msg.is-ok { color: #1f5a46; }
+  </style>
+</head>
+<body>
+  <main class="page page-sub">
+    <div class="auth-wrap">
+      <header class="hero">
+        <h1>月律</h1>
+        <p class="sub">經期紀錄與週期分析系統</p>
+        <p class="tagline">本系統提供學校學生使用，請以學校信箱登入或註冊。</p>
+      </header>
+
+      <section class="card" aria-label="登入與註冊">
+        <div class="tabs" role="tablist">
+          <button type="button" class="tab" role="tab" id="tabLogin" aria-selected="true">登入</button>
+          <button type="button" class="tab" role="tab" id="tabRegister" aria-selected="false">註冊</button>
+        </div>
+
+        <!-- 登入 -->
+        <form class="edit-form" id="loginForm" novalidate>
+          <div class="field">
+            <label for="loginEmail">Email</label>
+            <input type="email" id="loginEmail" autocomplete="username" required>
+          </div>
+          <div class="field">
+            <label for="loginPassword">密碼</label>
+            <input type="password" id="loginPassword" autocomplete="current-password" required>
+          </div>
+          <button type="submit" class="btn" id="loginBtn">登入</button>
+        </form>
+
+        <!-- 註冊 -->
+        <form class="edit-form" id="registerForm" novalidate hidden>
+          <div class="field">
+            <label for="regSid">學號</label>
+            <input type="text" id="regSid" autocomplete="off" required>
+          </div>
+          <div class="field">
+            <label for="regEmail">學校信箱</label>
+            <input type="email" id="regEmail" autocomplete="email" placeholder="學號@o365.au.edu.tw" required>
+            <p class="hint">格式必須是「學號@o365.au.edu.tw」，且與上方學號一致。</p>
+          </div>
+          <div class="field">
+            <label for="regPassword">密碼（至少 8 個字元）</label>
+            <input type="password" id="regPassword" autocomplete="new-password" minlength="8" required>
+          </div>
+          <div class="field">
+            <label for="regPassword2">確認密碼</label>
+            <input type="password" id="regPassword2" autocomplete="new-password" required>
+          </div>
+          <button type="submit" class="btn" id="registerBtn">註冊</button>
+        </form>
+
+        <p class="form-msg" id="msg" role="status" aria-live="polite"></p>
+      </section>
+    </div>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+  <script src="auth.js"></script>
+  <script>
+    (async function () {
+      var EMAIL_RE = /^[a-z0-9]+@o365\.au\.edu\.tw$/;
+      var SID_RE = /^[a-z0-9]+$/;
+
+      function $(id) { return document.getElementById(id); }
+
+      function showMsg(text, kind) {
+        var el = $("msg");
+        el.textContent = text;
+        el.className = "form-msg" + (kind === "error" ? " is-error" : kind === "ok" ? " is-ok" : "");
+      }
+
+      // 已登入就直接進入首頁（email 驗證連結導回本頁時也會走這裡）
+      var existing = await sb.auth.getSession();
+      if (existing.data && existing.data.session) {
+        location.replace("index.html");
+        return;
+      }
+
+      // 切換登入 / 註冊
+      function showMode(mode) {
+        var isLogin = mode === "login";
+        $("loginForm").hidden = !isLogin;
+        $("registerForm").hidden = isLogin;
+        $("tabLogin").setAttribute("aria-selected", String(isLogin));
+        $("tabRegister").setAttribute("aria-selected", String(!isLogin));
+        showMsg("", "");
+      }
+      $("tabLogin").addEventListener("click", function () { showMode("login"); });
+      $("tabRegister").addEventListener("click", function () { showMode("register"); });
+
+      function authError(err) {
+        var m = (err && err.message) || "";
+        if (/invalid login credentials/i.test(m)) return "信箱或密碼錯誤。";
+        if (/email not confirmed/i.test(m)) return "請先到學校信箱點擊驗證連結後再登入。";
+        if (/already registered|already been registered/i.test(m)) return "這個信箱已經註冊過，請直接登入。";
+        if (/database error/i.test(m)) return "註冊失敗：請確認學號與學校信箱一致，且尚未註冊過。";
+        if (/rate limit|too many/i.test(m)) return "操作太頻繁，請稍後再試。";
+        if (/password/i.test(m)) return "密碼不符合規則，請使用至少 8 個字元。";
+        if (/failed to fetch|networkerror|load failed/i.test(m)) return "無法連線，請檢查網路連線。";
+        return "操作失敗：" + m;
+      }
+
+      // 登入
+      $("loginForm").addEventListener("submit", async function (e) {
+        e.preventDefault();
+        var email = $("loginEmail").value.trim().toLowerCase();
+        var password = $("loginPassword").value;
+        if (!email || !password) return showMsg("請輸入 Email 與密碼。", "error");
+
+        $("loginBtn").disabled = true;
+        var res = await sb.auth.signInWithPassword({ email: email, password: password });
+        $("loginBtn").disabled = false;
+
+        if (res.error) return showMsg(authError(res.error), "error");
+        location.replace("index.html");
+      });
+
+      // 註冊（前端先驗證；資料庫端還會再強制驗證一次）
+      $("registerForm").addEventListener("submit", async function (e) {
+        e.preventDefault();
+        var sid = $("regSid").value.trim().toLowerCase();
+        var email = $("regEmail").value.trim().toLowerCase();
+        var password = $("regPassword").value;
+        var password2 = $("regPassword2").value;
+
+        if (!sid) return showMsg("請輸入學號。", "error");
+        if (!SID_RE.test(sid)) return showMsg("學號只能包含英文字母與數字。", "error");
+        if (!EMAIL_RE.test(email)) return showMsg("請使用學校信箱，格式為「學號@o365.au.edu.tw」。", "error");
+        if (email.split("@")[0] !== sid) return showMsg("學號與學校信箱不一致，請重新確認。", "error");
+        if (password.length < 8) return showMsg("密碼至少需要 8 個字元。", "error");
+        if (password !== password2) return showMsg("兩次輸入的密碼不一致。", "error");
+
+        $("registerBtn").disabled = true;
+        var res = await sb.auth.signUp({
+          email: email,
+          password: password,
+          options: {
+            data: { student_id: sid },
+            emailRedirectTo: new URL("login.html", location.href).href
+          }
+        });
+        $("registerBtn").disabled = false;
+
+        if (res.error) return showMsg(authError(res.error), "error");
+
+        if (res.data && res.data.session) {
+          location.replace("index.html");
+          return;
+        }
+        $("registerForm").reset();
+        showMsg("驗證信已寄到 " + email + "，請到學校信箱點擊連結完成註冊後再登入。", "ok");
+      });
+    })();
+  </script>
+</body>
+</html>
