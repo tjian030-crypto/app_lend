@@ -110,8 +110,12 @@
 
   </main>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+  <script src="auth.js"></script>
   <script>
-    (function () {
+    (async function () {
+      if (!(await Auth.requireLogin())) return;
+
       var KEY = "periodTracker.v1";
       var DAY = 86400000;
       var state = { last: "", cycle: 28, len: 5 };
