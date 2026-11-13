@@ -22,6 +22,8 @@
     .count { margin: 0 0 12px; font-size: 0.9rem; color: var(--muted); }
     .note { margin: 0; font-size: 0.85rem; color: var(--muted); }
     .form-msg.is-ok { color: #1f5a46; }
+    .link-btn { display: inline-flex; align-items: center; min-height: 44px; margin-top: 12px; padding: 0 20px; border-radius: var(--radius-sm); background: var(--period); color: var(--period-ink); font-weight: 700; text-decoration: none; }
+    .link-btn:hover { background: var(--rose); }
   </style>
 </head>
 <body>
@@ -42,6 +44,12 @@
     <header class="hero">
       <h1>管理後台</h1>
     </header>
+
+    <section class="card" aria-labelledby="recTitle">
+      <h2 id="recTitle">經期紀錄管理</h2>
+      <p class="note">新增、查詢、修改與刪除所有使用者的經期紀錄，可依學號或 Email 搜尋。</p>
+      <a class="link-btn" href="admin-records.html">前往紀錄管理</a>
+    </section>
 
     <section class="card" aria-labelledby="usersTitle">
       <h2 id="usersTitle">使用者與角色</h2>
