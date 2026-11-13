@@ -88,6 +88,11 @@ var Auth = (function () {
       admin.href = "admin.html";
       admin.textContent = "管理後台";
       menu.appendChild(admin);
+
+      var recs = document.createElement("a");
+      recs.href = "admin-records.html";
+      recs.textContent = "紀錄管理";
+      menu.appendChild(recs);
     }
 
     var out = document.createElement("button");
